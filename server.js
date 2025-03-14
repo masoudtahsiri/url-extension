@@ -13,7 +13,6 @@ const fs = require('fs');
 const compression = require('compression');
 
 const app = express();
-const port = 3001;
 
 // Enable CORS and compression
 app.use(cors());
@@ -34,17 +33,19 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, 'frontend')));
 
 // Configure multer for file uploads with increased limits
+const storage = multer.memoryStorage(); // Use memory storage for Vercel
 const upload = multer({
-    dest: 'uploads/',
+    storage: storage,
     limits: {
         fileSize: 50 * 1024 * 1024, // 50MB limit
     }
 });
 
-// Ensure required directories exist
+// Ensure required directories exist in /tmp for Vercel
 ['uploads', 'results', 'temp'].forEach(dir => {
-    if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
+    const dirPath = path.join('/tmp', dir);
+    if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
     }
 });
 
@@ -81,7 +82,7 @@ function cleanupFiles(...files) {
 // Handle file upload and URL checking
 app.post('/api/check-urls', upload.single('urls'), async (req, res) => {
     console.log('Received request to /api/check-urls');
-    const tempDir = path.join(__dirname, 'temp');
+    const tempDir = path.join('/tmp', 'temp');
     const inputFile = path.join(tempDir, `input_${Date.now()}.txt`);
     const outputFile = path.join(tempDir, `output_${Date.now()}.txt`);
     let phpProcess = null;
@@ -277,7 +278,7 @@ app.options('/api/check-urls', (req, res) => {
 
 // Serve results files
 app.get('/results/:filename', (req, res) => {
-    const filePath = path.join(__dirname, 'results', req.params.filename);
+    const filePath = path.join('/tmp', 'results', req.params.filename);
     if (fs.existsSync(filePath)) {
         res.setHeader('Content-Type', 'text/csv');
         res.setHeader('Content-Disposition', `attachment; filename="${req.params.filename}"`);
@@ -287,27 +288,33 @@ app.get('/results/:filename', (req, res) => {
     }
 });
 
-// Handle server startup errors
-app.listen(port, (err) => {
-    if (err) {
-        if (err.code === 'EADDRINUSE') {
-            console.error(`Port ${port} is already in use. Please try these steps:`);
-            console.error('1. Kill any existing Node.js processes: pkill -f node');
-            console.error('2. Wait a few seconds');
-            console.error('3. Try starting the server again');
-        } else {
-            console.error('Error starting server:', err);
+// Export for Vercel
+module.exports = app;
+
+// Only listen if not running on Vercel
+if (process.env.NODE_ENV !== 'production') {
+    const port = process.env.PORT || 3001;
+    app.listen(port, (err) => {
+        if (err) {
+            if (err.code === 'EADDRINUSE') {
+                console.error(`Port ${port} is already in use. Please try these steps:`);
+                console.error('1. Kill any existing Node.js processes: pkill -f node');
+                console.error('2. Wait a few seconds');
+                console.error('3. Try starting the server again');
+            } else {
+                console.error('Error starting server:', err);
+            }
+            process.exit(1);
         }
-        process.exit(1);
-    }
-    console.log(`Server running on port ${port}`);
-});
+        console.log(`Server running on port ${port}`);
+    });
+}
 
 // Handle process termination
 process.on('SIGTERM', () => {
     console.log('SIGTERM received. Cleaning up...');
     // Clean up any temporary files
-    const tempDir = path.join(__dirname, 'temp');
+    const tempDir = path.join('/tmp', 'temp');
     if (fs.existsSync(tempDir)) {
         fs.readdirSync(tempDir).forEach(file => {
             const filePath = path.join(tempDir, file);
@@ -324,7 +331,7 @@ process.on('SIGTERM', () => {
 process.on('SIGINT', () => {
     console.log('SIGINT received. Cleaning up...');
     // Clean up any temporary files
-    const tempDir = path.join(__dirname, 'temp');
+    const tempDir = path.join('/tmp', 'temp');
     if (fs.existsSync(tempDir)) {
         fs.readdirSync(tempDir).forEach(file => {
             const filePath = path.join(tempDir, file);
@@ -342,7 +349,7 @@ process.on('SIGINT', () => {
 process.on('uncaughtException', (err) => {
     console.error('Uncaught Exception:', err);
     // Clean up any temporary files
-    const tempDir = path.join(__dirname, 'temp');
+    const tempDir = path.join('/tmp', 'temp');
     if (fs.existsSync(tempDir)) {
         fs.readdirSync(tempDir).forEach(file => {
             const filePath = path.join(tempDir, file);
@@ -360,7 +367,7 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason, promise) => {
     console.error('Unhandled Rejection at:', promise, 'reason:', reason);
     // Clean up any temporary files
-    const tempDir = path.join(__dirname, 'temp');
+    const tempDir = path.join('/tmp', 'temp');
     if (fs.existsSync(tempDir)) {
         fs.readdirSync(tempDir).forEach(file => {
             const filePath = path.join(tempDir, file);

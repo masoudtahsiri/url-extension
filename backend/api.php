@@ -18,6 +18,24 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS
     exit(0);
 }
 
+// Set temp directory for Vercel
+$tempDir = '/tmp';
+if (!is_dir($tempDir)) {
+    mkdir($tempDir, 0777, true);
+}
+
+// Get input and output file paths
+$inputFile = $tempDir . '/input_' . time() . '.txt';
+$outputFile = $tempDir . '/output_' . time() . '.txt';
+
+// Get POST data
+$data = json_decode(file_get_contents('php://input'), true);
+if (!$data) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Invalid JSON data']);
+    exit(1);
+}
+
 // Check if running from command line
 $isCli = php_sapi_name() === 'cli';
 
