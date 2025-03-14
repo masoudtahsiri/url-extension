@@ -5,79 +5,108 @@
  * MIT License - See LICENSE file for details
  */
 
-header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
+// Enable error reporting
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
-// Handle preflight requests
-if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+// Log function for debugging
+function debug_log($message, $data = null) {
+    $log = date('Y-m-d H:i:s') . " - " . $message;
+    if ($data !== null) {
+        $log .= "\n" . print_r($data, true);
+    }
+    error_log($log);
+}
+
+debug_log("PHP script started");
+
+// Set up headers for web requests
+if (php_sapi_name() !== 'cli') {
+    header('Content-Type: application/json');
     header('Access-Control-Allow-Origin: *');
     header('Access-Control-Allow-Methods: POST, OPTIONS');
     header('Access-Control-Allow-Headers: Content-Type');
-    exit(0);
+
+    // Handle preflight requests
+    if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+        debug_log("Handling OPTIONS request");
+        exit(0);
+    }
 }
 
-// Set temp directory for Vercel
-$tempDir = '/tmp';
+// Set up temp directory
+$tempDir = getenv('TEMP_DIR') ?: (is_dir('/tmp') ? '/tmp' : sys_get_temp_dir());
+$tempDir = rtrim($tempDir, '/') . '/temp';
+
+debug_log("Using temp directory: " . $tempDir);
+
 if (!is_dir($tempDir)) {
     mkdir($tempDir, 0777, true);
 }
 
-// Get input and output file paths
-$inputFile = $tempDir . '/input_' . time() . '.txt';
-$outputFile = $tempDir . '/output_' . time() . '.txt';
-
-// Get POST data
-$data = json_decode(file_get_contents('php://input'), true);
-if (!$data) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Invalid JSON data']);
-    exit(1);
+// Create subdirectories
+foreach (['uploads', 'results'] as $dir) {
+    $dirPath = $tempDir . '/' . $dir;
+    if (!is_dir($dirPath)) {
+        mkdir($dirPath, 0777, true);
+    }
 }
 
 // Check if running from command line
 $isCli = php_sapi_name() === 'cli';
+debug_log("Running in CLI mode: " . ($isCli ? "yes" : "no"));
 
-// Get input and output file paths from command line arguments if running as CLI
-if ($isCli && $argc >= 3) {
-    $inputFile = $argv[1];
-    $outputFile = $argv[2];
-} else {
-    // Handle web request
-    header('Content-Type: application/json');
-    header('Access-Control-Allow-Origin: *');
+try {
+    // Read input data
+    if (php_sapi_name() === 'cli') {
+        debug_log("Reading from stdin");
+        $input = file_get_contents('php://stdin');
+    } else {
+        debug_log("Reading from HTTP input");
+        $input = file_get_contents('php://input');
+    }
     
-    // Get POST data
-    $data = json_decode(file_get_contents('php://input'), true);
-    if (!$data) {
+    debug_log("Raw input:", $input);
+    
+    // Parse JSON input
+    $data = json_decode($input, true);
+    debug_log("Parsed input:", $data);
+    
+    if (!$data || !isset($data['urls']) || !is_array($data['urls'])) {
+        throw new Exception("Invalid or missing JSON data");
+    }
+    
+    // Process URLs
+    $results = [];
+    foreach ($data['urls'] as $url) {
+        $result = checkUrl($url);
+        $results[] = $result;
+    }
+    
+    // Prepare output
+    $output = [
+        'success' => true,
+        'message' => 'URLs processed successfully',
+        'results' => $results
+    ];
+    
+    // Send output
+    echo json_encode($output);
+    debug_log("Results sent");
+    
+} catch (Exception $e) {
+    debug_log("Error: " . $e->getMessage());
+    $error = [
+        'success' => false,
+        'error' => $e->getMessage()
+    ];
+    
+    if (php_sapi_name() !== 'cli') {
         http_response_code(400);
-        echo json_encode(['error' => 'Invalid JSON data']);
-        exit(1);
     }
-    
-    // Create temporary files
-    $tempDir = __DIR__ . '/../temp';
-    if (!file_exists($tempDir)) {
-        mkdir($tempDir, 0777, true);
-    }
-    
-    $inputFile = $tempDir . '/input_' . time() . '.txt';
-    $outputFile = $tempDir . '/output_' . time() . '.txt';
-    
-    // Write URLs to input file
-    $urls = isset($data['urls']) ? $data['urls'] : [];
-    if (empty($urls)) {
-        http_response_code(400);
-        echo json_encode(['error' => 'No URLs provided']);
-        exit(1);
-    }
-    file_put_contents($inputFile, implode("\n", $urls));
+    echo json_encode($error);
+    exit(1);
 }
-
-// Enable error reporting
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
 
 // Function to validate URL
 function isValidUrl($url) {
@@ -251,107 +280,4 @@ function checkUrl($url) {
         'redirect_chain' => $redirectChain,
         'error' => $error
     ];
-}
-
-try {
-    // Read URLs from input file
-    $urls = array_filter(explode("\n", file_get_contents($inputFile)), 'trim');
-
-    if (empty($urls)) {
-        throw new Exception('No URLs provided');
-    }
-
-    $totalUrls = count($urls);
-    $processedUrls = 0;
-
-    // Process URLs
-    $results = [];
-    foreach ($urls as $url) {
-        $result = checkUrl($url);
-        $results[] = $result;
-        $processedUrls++;
-        
-        // Write progress to output file
-        $progress = [
-            'success' => true,
-            'message' => 'Processing URLs',
-            'progress' => [
-                'current' => $processedUrls,
-                'total' => $totalUrls
-            ],
-            'results' => $results
-        ];
-        
-        // Write to output file and flush
-        file_put_contents($outputFile, json_encode($progress) . "\n");
-        if (function_exists('fflush')) {
-            fflush(fopen($outputFile, 'a'));
-        }
-        
-        // Add a small delay to prevent overwhelming the system
-        usleep(100000); // 100ms delay
-    }
-    
-    // Generate CSV file
-    $timestamp = date('Y-m-d_H-i-s');
-    $filename = "url_check_results_{$timestamp}.csv";
-    $resultsDir = __DIR__ . '/../results';
-    $filepath = $resultsDir . '/' . $filename;
-    
-    // Create results directory if it doesn't exist
-    if (!is_dir($resultsDir)) {
-        if (!mkdir($resultsDir, 0777, true)) {
-            throw new Exception('Failed to create results directory');
-        }
-    }
-    
-    $fp = fopen($filepath, 'w');
-    if ($fp === false) {
-        throw new Exception('Failed to create results file');
-    }
-    
-    // Write CSV header
-    fputcsv($fp, ['Source URL', 'Initial Status', 'Target URL', 'Final Status', 'Error'], ',', '"', '\\');
-    
-    // Write results to CSV
-    foreach ($results as $result) {
-        // Get the final status code
-        $finalStatus = '';
-        if (!empty($result['redirect_chain'])) {
-            $lastRedirect = end($result['redirect_chain']);
-            $finalStatus = $lastRedirect['final_status'] ?? '';
-        }
-        
-        fputcsv($fp, [
-            $result['source_url'],
-            $result['initial_status'],
-            $result['target_url'],
-            $finalStatus,
-            $result['error'] ?? ''
-        ], ',', '"', '\\');
-    }
-    
-    fclose($fp);
-    
-    // Write results to output file
-    $output = json_encode([
-        'success' => true,
-        'message' => 'URLs processed successfully',
-        'file' => $filename,
-        'results' => $results
-    ]);
-    
-    if (file_put_contents($outputFile, $output) === false) {
-        throw new Exception('Failed to write output file');
-    }
-    
-} catch (Exception $e) {
-    // Write error to output file
-    $error = json_encode([
-        'success' => false,
-        'message' => $e->getMessage()
-    ]);
-    
-    file_put_contents($outputFile, $error);
-    exit(1);
 } 

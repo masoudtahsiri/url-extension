@@ -41,79 +41,62 @@ const upload = multer({
     }
 });
 
-// Ensure required directories exist in /tmp for Vercel
-['uploads', 'results', 'temp'].forEach(dir => {
-    const dirPath = path.join('/tmp', dir);
-    if (!fs.existsSync(dirPath)) {
-        fs.mkdirSync(dirPath, { recursive: true });
+// Get temp directory based on environment
+const getTempDir = () => {
+    const baseDir = process.env.VERCEL ? '/tmp' : process.cwd();
+    const tempDir = path.join(baseDir, 'temp');
+    if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
     }
-});
+    return tempDir;
+};
 
-// Function to wait for file to be ready
-function waitForFile(filePath, timeout = 5000) {
-    return new Promise((resolve, reject) => {
-        const startTime = Date.now();
-        const checkFile = () => {
-            if (fs.existsSync(filePath)) {
-                resolve();
-            } else if (Date.now() - startTime > timeout) {
-                reject(new Error('Timeout waiting for file'));
-            } else {
-                setTimeout(checkFile, 100);
-            }
-        };
-        checkFile();
-    });
-}
-
-// Function to clean up temporary files
-function cleanupFiles(...files) {
-    files.forEach(file => {
-        try {
-            if (fs.existsSync(file)) {
-                fs.unlinkSync(file);
-            }
-        } catch (error) {
-            console.error(`Error cleaning up file ${file}:`, error);
+// Ensure required directories exist
+const ensureDirectories = () => {
+    const tempDir = getTempDir();
+    ['uploads', 'results'].forEach(dir => {
+        const dirPath = path.join(tempDir, dir);
+        if (!fs.existsSync(dirPath)) {
+            fs.mkdirSync(dirPath, { recursive: true });
         }
     });
-}
+};
+
+// Create directories at startup
+ensureDirectories();
 
 // Handle file upload and URL checking
 app.post('/api/check-urls', upload.single('urls'), async (req, res) => {
     console.log('Received request to /api/check-urls');
-    const tempDir = path.join('/tmp', 'temp');
-    const inputFile = path.join(tempDir, `input_${Date.now()}.txt`);
-    const outputFile = path.join(tempDir, `output_${Date.now()}.txt`);
+    console.log('Request body:', req.body);
+    console.log('File:', req.file);
+    
     let phpProcess = null;
-    let responseSent = false;
     
     try {
+        // Ensure directories exist before processing
+        ensureDirectories();
+
         // Set request timeout
         req.setTimeout(600000); // 10 minutes
         res.setTimeout(600000); // 10 minutes
-
-        // Ensure temp directory exists
-        if (!fs.existsSync(tempDir)) {
-            fs.mkdirSync(tempDir, { recursive: true });
-        }
 
         let urls = [];
         
         // Handle file upload
         if (req.file) {
-            console.log('Processing uploaded file:', req.file.filename);
-            const content = fs.readFileSync(req.file.path, 'utf8');
+            console.log('Processing uploaded file');
+            const content = req.file.buffer.toString('utf8');
+            console.log('File content:', content);
             const lines = content.split('\n');
-            // Skip the first line (headers) and filter out empty lines
+            // Skip the first row (headers) and filter out empty lines
             urls = lines.slice(1).filter(url => url.trim());
-            console.log(`Found ${urls.length} URLs in file (excluding header)`);
-            // Clean up uploaded file
-            fs.unlinkSync(req.file.path);
+            console.log(`Found ${urls.length} URLs in file`);
         }
         
         // Handle URLs from form data
         if (req.body.urls_text) {
+            console.log('Processing URLs from text:', req.body.urls_text);
             const textUrls = req.body.urls_text.split('\n').filter(url => url.trim());
             urls = urls.concat(textUrls);
         }
@@ -121,153 +104,137 @@ app.post('/api/check-urls', upload.single('urls'), async (req, res) => {
         // Handle URLs from JSON data
         const jsonData = req.body.urls;
         if (jsonData && Array.isArray(jsonData)) {
+            console.log('Processing URLs from JSON:', jsonData);
             urls = urls.concat(jsonData);
         }
 
         if (urls.length === 0) {
+            console.log('No URLs provided');
             return res.status(400).json({ error: 'No URLs provided' });
         }
 
-        // Write URLs to input file
-        fs.writeFileSync(inputFile, urls.join('\n'));
-        console.log('Writing URLs to input file:', inputFile);
+        console.log('Final URLs to process:', urls);
+
+        // Set up response headers for streaming
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Transfer-Encoding', 'chunked');
+        res.flushHeaders();
+
+        // Send initial progress
+        res.write(JSON.stringify({
+            progress: {
+                current: 0,
+                total: urls.length
+            }
+        }) + '\n');
 
         // Start PHP process
         console.log('Starting PHP process');
-        phpProcess = spawn('php', ['backend/api.php', inputFile, outputFile], {
+        phpProcess = spawn('php', ['backend/api.php'], {
             stdio: ['pipe', 'pipe', 'pipe']
         });
 
-        // Set up timeout for PHP process (10 minutes)
-        const timeout = setTimeout(() => {
-            if (phpProcess) {
-                phpProcess.kill();
-            }
-            if (!responseSent) {
-                responseSent = true;
-                cleanupFiles(inputFile, outputFile);
-                res.status(500).json({ error: 'PHP process timed out' });
-            }
-        }, 600000);
+        let phpOutput = '';
+        let phpError = '';
 
-        // Handle PHP process output
+        // Write URLs to PHP process stdin
+        phpProcess.stdin.write(JSON.stringify({ urls: urls }));
+        phpProcess.stdin.end();
+
         phpProcess.stdout.on('data', (data) => {
+            phpOutput += data.toString();
             console.log('PHP stdout:', data.toString());
-            // Try to parse progress updates
-            try {
-                const output = data.toString().trim();
-                if (output) {
-                    const progress = JSON.parse(output);
-                    if (progress.progress) {
-                        // Send progress update to client
-                        if (!responseSent) {
-                            res.write(JSON.stringify(progress) + '\n');
-                            res.flush();
-                        }
-                    }
-                }
-            } catch (e) {
-                // Ignore parsing errors for non-JSON output
-            }
         });
 
-        // Watch output file for changes
-        let lastSize = 0;
-        const watchOutputFile = setInterval(() => {
-            if (fs.existsSync(outputFile)) {
-                const stats = fs.statSync(outputFile);
-                if (stats.size > lastSize) {
-                    lastSize = stats.size;
-                    const content = fs.readFileSync(outputFile, 'utf8');
-                    const lines = content.split('\n').filter(line => line.trim());
-                    if (lines.length > 0) {
-                        try {
-                            const progress = JSON.parse(lines[lines.length - 1]);
-                            if (progress.progress) {
-                                if (!responseSent) {
-                                    res.write(JSON.stringify(progress) + '\n');
-                                    res.flush();
-                                }
-                            }
-                        } catch (e) {
-                            // Ignore parsing errors
-                        }
-                    }
-                }
-            }
-        }, 100);
-
         phpProcess.stderr.on('data', (data) => {
+            phpError += data.toString();
             console.log('PHP stderr:', data.toString());
         });
 
         // Wait for PHP process to complete
-        phpProcess.on('close', (code) => {
-            clearTimeout(timeout);
-            clearInterval(watchOutputFile);
-            console.log('PHP process closed with code', code);
-
-            // Wait for output file to be written
-            setTimeout(() => {
-                console.log('Waiting for output file');
-                if (fs.existsSync(outputFile)) {
-                    console.log('Reading output file');
-                    const output = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
-                    console.log('Sending response to client');
-                    if (!responseSent) {
-                        responseSent = true;
-                        // Send the response with the file path
-                        res.write(JSON.stringify({
-                            ...output,
-                            file: output.file ? `/results/${output.file}` : null
-                        }) + '\n');
-                        res.end();
-                    }
+        await new Promise((resolve, reject) => {
+            phpProcess.on('close', (code) => {
+                console.log('PHP process closed with code', code);
+                if (code === 0 && phpOutput) {
+                    resolve();
                 } else {
-                    if (!responseSent) {
-                        responseSent = true;
-                        res.status(500).json({ error: 'Output file not found' });
-                    }
+                    reject(new Error(`PHP process failed with code ${code}\nOutput: ${phpOutput}\nError: ${phpError}`));
                 }
-                cleanupFiles(inputFile, outputFile);
-            }, 1000);
+            });
         });
 
-        // Handle PHP process errors
-        phpProcess.on('error', (err) => {
-            clearTimeout(timeout);
-            clearInterval(watchOutputFile);
-            console.error('PHP process error:', err);
-            if (!responseSent) {
-                responseSent = true;
-                cleanupFiles(inputFile, outputFile);
-                res.status(500).json({ error: 'Failed to start PHP process' });
-            }
-        });
+        // Parse PHP output
+        try {
+            const output = JSON.parse(phpOutput);
+            console.log('PHP output:', output);
 
-        // Handle request timeout
-        req.on('timeout', () => {
-            clearInterval(watchOutputFile);
-            if (phpProcess) {
-                phpProcess.kill();
+            // Generate CSV file
+            const csvRows = [
+                'Original URL,Final URL,Status Codes,Redirect Count'
+            ];
+
+            output.results.forEach(result => {
+                const statusCodes = [];
+                
+                // Add all statuses from redirect chain
+                if (result.redirect_chain) {
+                    result.redirect_chain.forEach((redirect, index) => {
+                        if (redirect.status) {
+                            statusCodes.push(redirect.status);
+                        }
+                        // Only add final status for the last redirect
+                        if (redirect.final_status && index === result.redirect_chain.length - 1) {
+                            statusCodes.push(redirect.final_status);
+                        }
+                    });
+                }
+
+                csvRows.push([
+                    result.source_url,
+                    result.target_url,
+                    statusCodes.join(' → '),
+                    result.redirect_chain ? result.redirect_chain.length : 0
+                ].join(','));
+            });
+
+            // Create CSV content without the header row
+            const csvContent = csvRows.slice(1).join('\n');
+            
+            // Generate unique filename
+            const filename = `results_${Date.now()}.csv`;
+            const filePath = path.join(getTempDir(), 'results', filename);
+            
+            // Ensure results directory exists
+            const resultsDir = path.join(getTempDir(), 'results');
+            if (!fs.existsSync(resultsDir)) {
+                fs.mkdirSync(resultsDir, { recursive: true });
             }
-            if (!responseSent) {
-                responseSent = true;
-                cleanupFiles(inputFile, outputFile);
-                res.status(500).json({ error: 'Request timed out' });
-            }
-        });
+            
+            // Write CSV file
+            fs.writeFileSync(filePath, csvContent);
+
+            // Send final progress with results and file link
+            res.write(JSON.stringify({
+                progress: {
+                    current: urls.length,
+                    total: urls.length
+                },
+                results: output.results,
+                file: `/results/${filename}`
+            }) + '\n');
+
+            // End the response
+            res.end();
+        } catch (error) {
+            throw new Error(`Failed to parse PHP output: ${error.message}\nOutput: ${phpOutput}\nError: ${phpError}`);
+        }
 
     } catch (error) {
         console.error('Error processing URLs:', error);
         if (phpProcess) {
             phpProcess.kill();
         }
-        if (!responseSent) {
-            responseSent = true;
-            cleanupFiles(inputFile, outputFile);
-            res.status(500).json({ error: error.message });
-        }
+        res.status(500).json({ error: error.message });
     }
 });
 
@@ -278,7 +245,7 @@ app.options('/api/check-urls', (req, res) => {
 
 // Serve results files
 app.get('/results/:filename', (req, res) => {
-    const filePath = path.join('/tmp', 'results', req.params.filename);
+    const filePath = path.join(getTempDir(), 'results', req.params.filename);
     if (fs.existsSync(filePath)) {
         res.setHeader('Content-Type', 'text/csv');
         res.setHeader('Content-Disposition', `attachment; filename="${req.params.filename}"`);
@@ -313,70 +280,22 @@ if (process.env.NODE_ENV !== 'production') {
 // Handle process termination
 process.on('SIGTERM', () => {
     console.log('SIGTERM received. Cleaning up...');
-    // Clean up any temporary files
-    const tempDir = path.join('/tmp', 'temp');
-    if (fs.existsSync(tempDir)) {
-        fs.readdirSync(tempDir).forEach(file => {
-            const filePath = path.join(tempDir, file);
-            try {
-                fs.unlinkSync(filePath);
-            } catch (err) {
-                console.error(`Error deleting ${filePath}:`, err);
-            }
-        });
-    }
     process.exit(0);
 });
 
 process.on('SIGINT', () => {
     console.log('SIGINT received. Cleaning up...');
-    // Clean up any temporary files
-    const tempDir = path.join('/tmp', 'temp');
-    if (fs.existsSync(tempDir)) {
-        fs.readdirSync(tempDir).forEach(file => {
-            const filePath = path.join(tempDir, file);
-            try {
-                fs.unlinkSync(filePath);
-            } catch (err) {
-                console.error(`Error deleting ${filePath}:`, err);
-            }
-        });
-    }
     process.exit(0);
 });
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
     console.error('Uncaught Exception:', err);
-    // Clean up any temporary files
-    const tempDir = path.join('/tmp', 'temp');
-    if (fs.existsSync(tempDir)) {
-        fs.readdirSync(tempDir).forEach(file => {
-            const filePath = path.join(tempDir, file);
-            try {
-                fs.unlinkSync(filePath);
-            } catch (err) {
-                console.error(`Error deleting ${filePath}:`, err);
-            }
-        });
-    }
     process.exit(1);
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
     console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-    // Clean up any temporary files
-    const tempDir = path.join('/tmp', 'temp');
-    if (fs.existsSync(tempDir)) {
-        fs.readdirSync(tempDir).forEach(file => {
-            const filePath = path.join(tempDir, file);
-            try {
-                fs.unlinkSync(filePath);
-            } catch (err) {
-                console.error(`Error deleting ${filePath}:`, err);
-            }
-        });
-    }
     process.exit(1);
 }); 

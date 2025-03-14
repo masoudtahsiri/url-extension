@@ -490,24 +490,20 @@
                 const row = tbody.insertRow();
                 let statusCodes = [];
                 
-                // Add initial status
-                if (result.initial_status) {
-                    statusCodes.push(result.initial_status);
+                // Add all statuses from redirect chain
+                if (result.redirect_chain && result.redirect_chain.length > 0) {
+                    result.redirect_chain.forEach((redirect, index) => {
+                        if (redirect.status) {
+                            statusCodes.push(redirect.status);
+                        }
+                        // Only add final status for the last redirect
+                        if (redirect.final_status && index === result.redirect_chain.length - 1) {
+                            statusCodes.push(redirect.final_status);
+                        }
+                    });
                 }
                 
-                // Add final status if available
-                if (result.final_status) {
-                    statusCodes.push(result.final_status);
-                }
-                // If no final_status but we have redirect chain with final_status
-                else if (result.redirect_chain && result.redirect_chain.length > 0) {
-                    const lastRedirect = result.redirect_chain[result.redirect_chain.length - 1];
-                    if (lastRedirect.final_status) {
-                        statusCodes.push(lastRedirect.final_status);
-                    }
-                }
-                
-                const redirectCount = result.redirect_count || (result.redirect_chain ? result.redirect_chain.length : 0);
+                const redirectCount = result.redirect_chain ? result.redirect_chain.length : 0;
                 
                 // Create cells with proper URL data
                 const cells = [
