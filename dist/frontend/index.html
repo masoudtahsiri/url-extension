@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL Checker</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #00A878;
+            --primary-hover: #046A38;
+            --bg-color: #002D26;
+            --card-bg: #FFFFFF;
+            --text-color: #1E293B;
+            --border-color: #E2E8F0;
+            --success-color: #00A878;
+            --warning-color: #F59E0B;
+            --error-color: #EF4444;
+        }
+
+        body {
+            width: 500px;
+            min-height: 600px;
+            margin: 0;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            color: var(--text-color);
+            background: var(--bg-color);
+            padding: 1rem;
+        }
+
+        .container {
+            width: 100%;
+            padding: 0;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1rem;
+        }
+
+        .card-header {
+            background: #046A38;
+            color: white;
+            border-radius: 1rem 1rem 0 0 !important;
+            padding: 1rem;
+            border: none;
+        }
+
+        .card-header h2 {
+            font-weight: 700;
+            font-size: 1.25rem;
+            margin: 0;
+            letter-spacing: -0.025em;
+        }
+
+        .card-body {
+            padding: 1.5rem;
+            border: 1px solid rgba(0, 168, 120, 0.2);
+            border-top: none;
+            border-radius: 0 0 1rem 1rem;
+        }
+
+        .form-label {
+            font-weight: 600;
+            color: var(--text-color);
+            margin-bottom: 0.5rem;
+        }
+
+        .form-control {
+            border: 2px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+            transition: all 0.2s ease;
+            background: #F8FAFC;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 4px rgba(0, 168, 120, 0.1);
+        }
+
+        textarea.form-control {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            border-radius: 0.75rem;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+            font-size: 0.875rem;
+        }
+
+        .btn-primary {
+            background: #00A878;
+            border: none;
+            box-shadow: 0 4px 6px -1px rgba(0, 168, 120, 0.2);
+            color: #FFFFFF;
+        }
+
+        .btn-primary:hover {
+            background: #046A38;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 8px -1px rgba(4, 106, 56, 0.3);
+        }
+
+        .progress {
+            height: 0.75rem;
+            border-radius: 1rem;
+            background-color: #E2E8F0;
+            margin: 1rem 0;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            background: linear-gradient(135deg, #00A878, #046A38);
+            transition: width 0.3s ease;
+        }
+
+        .results-section {
+            max-height: 300px;
+            overflow-y: auto;
+            border-radius: 0.75rem;
+            border: 2px solid var(--border-color);
+            margin-top: 1rem;
+        }
+
+        .table {
+            margin: 0;
+            font-size: 0.875rem;
+        }
+
+        .table th {
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+            padding: 0.75rem;
+            background: #F1F5F9;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .table td {
+            padding: 0.75rem;
+            vertical-align: middle;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .or-divider {
+            text-align: center;
+            position: relative;
+            margin: 1rem 0;
+        }
+
+        .or-divider::before,
+        .or-divider::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            width: 45%;
+            height: 1px;
+            background: var(--border-color);
+        }
+
+        .or-divider::before {
+            left: 0;
+        }
+
+        .or-divider::after {
+            right: 0;
+        }
+
+        .or-divider span {
+            background: var(--card-bg);
+            padding: 0 1rem;
+            color: #64748B;
+            font-weight: 500;
+            text-transform: uppercase;
+            font-size: 0.875rem;
+        }
+
+        .alert {
+            margin-bottom: 1rem;
+            border-radius: 0.75rem;
+            padding: 1rem;
+        }
+    </style>
+</head>
+<body>
+        <div class="container">
+            <div class="card">
+                <div class="card-header">
+                <h2>URL Checker</h2>
+                </div>
+                <div class="card-body">
+                    <form id="urlForm">
+                    <div class="mb-3">
+                        <label for="csvFile" class="form-label">Upload CSV File</label>
+                            <input type="file" class="form-control" id="csvFile" accept=".csv">
+                        </div>
+
+                        <div class="or-divider">
+                            <span>or</span>
+                        </div>
+
+                    <div class="mb-3">
+                        <label for="urls" class="form-label">Enter URLs (one per line)</label>
+                            <textarea class="form-control" id="urls" rows="5" placeholder="https://example.com/page1&#10;https://example.com/page2"></textarea>
+                            <small id="urlCount" class="form-text text-muted"></small>
+                        </div>
+
+                            <button type="submit" class="btn btn-primary" id="submitBtn">
+                                <i class="fas fa-search me-2"></i>Check URLs
+                            </button>
+                    </form>
+
+                    <div id="progressSection" style="display: none;">
+                        <div class="progress">
+                            <div class="progress-bar" id="progressBar" role="progressbar" style="width: 0%"></div>
+                        </div>
+                        <p class="text-center text-muted">
+                            Processing: <span id="processedUrls">0</span> / <span id="totalUrls">0</span>
+                        </p>
+                    </div>
+
+                    <div id="resultsSection" class="results-section" style="display: none;">
+                        <table class="table" id="resultsTable">
+                            <thead>
+                                <tr>
+                                    <th>Original URL</th>
+                                    <th>Final URL</th>
+                                    <th>Status</th>
+                                    <th>Redirects</th>
+                                </tr>
+                            </thead>
+                            <tbody id="resultsBody"></tbody>
+                        </table>
+                    </div>
+                    
+                    <a href="#" id="downloadButton" class="btn btn-success mt-3" style="display: none;">
+                        <i class="fas fa-download me-2"></i>Download Results
+                    </a>
+                </div>
+            </div>
+        </div>
+
+    <script src="popup.js"></script>
+</body>
+</html> 

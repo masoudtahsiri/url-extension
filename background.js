@@ -18,9 +18,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
+function normalizeUrlForFetch(url) {
+  if (!/^https?:\/\//i.test(url)) {
+    return 'https://' + url;
+  }
+  return url;
+}
+
 async function checkUrl(url) {
   try {
-    // Normalize the input URL
+    // Normalize the input URL for fetch
+    url = normalizeUrlForFetch(url);
     const normalizedInputUrl = url.toLowerCase().trim();
     
     const response = await fetch(url, {
