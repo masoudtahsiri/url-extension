@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const urlsTextarea = document.getElementById('urls');
     const csvFileInput = document.getElementById('csvFile');
     const statusFilter = document.getElementById('statusFilter');
+    const urlSearch = document.getElementById('urlSearch');
     let allResults = []; // Store all results for filtering
 
     function showAlert(message, type) {
@@ -68,24 +69,34 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function filterResults() {
-        const selectedFilter = statusFilter.value;
+        const selectedStatus = statusFilter.value;
+        const searchTerm = urlSearch.value.toLowerCase();
         const tbody = resultsTable.querySelector('tbody');
         tbody.innerHTML = '';
         
         const filteredResults = allResults.filter(result => {
-            if (selectedFilter === 'all') return true;
-            
-            // Check initial status
-            if (result.status === parseInt(selectedFilter)) return true;
-            
-            // Check redirect chain statuses
-            if (result.redirect_chain) {
-                return result.redirect_chain.some(redirect => 
-                    redirect.status === parseInt(selectedFilter)
-                );
+            // Status code filter
+            let statusMatch = true;
+            if (selectedStatus !== 'all') {
+                statusMatch = false;
+                // Check initial status
+                if (result.status === parseInt(selectedStatus)) {
+                    statusMatch = true;
+                }
+                // Check redirect chain statuses
+                if (result.redirect_chain) {
+                    statusMatch = result.redirect_chain.some(redirect => 
+                        redirect.status === parseInt(selectedStatus)
+                    );
+                }
             }
-            
-            return false;
+
+            // URL search filter
+            const urlMatch = searchTerm === '' || 
+                (result.source_url && result.source_url.toLowerCase().includes(searchTerm)) ||
+                (result.target_url && result.target_url.toLowerCase().includes(searchTerm));
+
+            return statusMatch && urlMatch;
         });
         
         filteredResults.forEach(result => {
@@ -271,8 +282,11 @@ document.addEventListener('DOMContentLoaded', function() {
         form.addEventListener('submit', handleSubmit);
     }
 
-    // Add event listener for status filter
+    // Add event listeners for both filters
     if (statusFilter) {
         statusFilter.addEventListener('change', filterResults);
+    }
+    if (urlSearch) {
+        urlSearch.addEventListener('input', filterResults);
     }
 }); 
