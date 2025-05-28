@@ -36,8 +36,35 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function displayResults(results) {
         allResults = results; // Store all results
+        updateStatusFilter(results); // Update filter options based on results
         filterResults(); // Apply initial filter
         resultsSection.style.display = 'block';
+    }
+
+    function updateStatusFilter(results) {
+        // Get unique status codes from results
+        const statusCodes = new Set();
+        results.forEach(result => {
+            if (result.status) {
+                statusCodes.add(result.status);
+            }
+            if (result.redirect_chain) {
+                result.redirect_chain.forEach(redirect => {
+                    if (redirect.status) {
+                        statusCodes.add(redirect.status);
+                    }
+                });
+            }
+        });
+
+        // Sort status codes
+        const sortedCodes = Array.from(statusCodes).sort((a, b) => a - b);
+
+        // Update filter options
+        statusFilter.innerHTML = `
+            <option value="all">All Status Codes</option>
+            ${sortedCodes.map(code => `<option value="${code}">${code}</option>`).join('')}
+        `;
     }
 
     function filterResults() {
@@ -48,11 +75,17 @@ document.addEventListener('DOMContentLoaded', function() {
         const filteredResults = allResults.filter(result => {
             if (selectedFilter === 'all') return true;
             
-            const statusCode = result.status;
-            if (!statusCode) return false;
+            // Check initial status
+            if (result.status === parseInt(selectedFilter)) return true;
             
-            const firstDigit = Math.floor(statusCode / 100);
-            return selectedFilter === `${firstDigit}xx`;
+            // Check redirect chain statuses
+            if (result.redirect_chain) {
+                return result.redirect_chain.some(redirect => 
+                    redirect.status === parseInt(selectedFilter)
+                );
+            }
+            
+            return false;
         });
         
         filteredResults.forEach(result => {
