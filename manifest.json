@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "HTTP Status",
+  "name": "HTTP Status Peek",
   "version": "1.0.0",
-  "description": "Check HTTP status codes and redirects for URLs",
+  "description": "Quickly check HTTP status codes and redirects for URLs",
   "permissions": [
     "activeTab",
     "storage",
