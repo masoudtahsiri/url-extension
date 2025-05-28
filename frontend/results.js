@@ -6,6 +6,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const totalUrls = document.getElementById('totalUrls');
     const downloadButton = document.getElementById('downloadButton');
     const resultsTable = document.getElementById('resultsTable');
+    const statusFilter = document.getElementById('statusFilter');
+    let allResults = []; // Store all results for filtering
 
     function showAlert(message, type) {
         const alertDiv = document.createElement('div');
@@ -28,10 +30,27 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function displayResults(results) {
+        allResults = results; // Store all results
+        filterResults(); // Apply initial filter
+        resultsSection.style.display = 'block';
+    }
+
+    function filterResults() {
+        const selectedFilter = statusFilter.value;
         const tbody = resultsTable.querySelector('tbody');
         tbody.innerHTML = '';
         
-        results.forEach(result => {
+        const filteredResults = allResults.filter(result => {
+            if (selectedFilter === 'all') return true;
+            
+            const statusCode = result.status;
+            if (!statusCode) return false;
+            
+            const firstDigit = Math.floor(statusCode / 100);
+            return selectedFilter === `${firstDigit}xx`;
+        });
+        
+        filteredResults.forEach(result => {
             const row = tbody.insertRow();
             let statusCodes = [];
             
@@ -63,8 +82,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 cell.textContent = cellData;
             });
         });
-        
-        resultsSection.style.display = 'block';
     }
 
     function escapeCSV(value) {
@@ -178,5 +195,10 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Error:', error);
             showAlert('An error occurred while processing URLs', 'danger');
         }
+    }
+
+    // Add event listener for status filter
+    if (statusFilter) {
+        statusFilter.addEventListener('change', filterResults);
     }
 }); 

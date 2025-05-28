@@ -232,6 +232,16 @@
                     </div>
 
                     <div id="resultsSection" class="results-section" style="display: none;">
+                        <div class="mb-3">
+                            <label for="statusFilter" class="form-label">Filter by Status Code</label>
+                            <select class="form-control" id="statusFilter">
+                                <option value="all">All Status Codes</option>
+                                <option value="2xx">2xx (Success)</option>
+                                <option value="3xx">3xx (Redirect)</option>
+                                <option value="4xx">4xx (Client Error)</option>
+                                <option value="5xx">5xx (Server Error)</option>
+                            </select>
+                        </div>
                         <table class="table" id="resultsTable">
                             <thead>
                                 <tr>
