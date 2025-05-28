@@ -81,6 +81,23 @@
         .table th {
             background-color: #F8FAFC;
             font-weight: 600;
+            vertical-align: top;
+        }
+
+        .table th select {
+            width: 100%;
+            font-size: 0.75rem;
+            padding: 0.25rem;
+            margin-top: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 0.25rem;
+            background-color: white;
+        }
+
+        .table th select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(0, 168, 120, 0.1);
+            outline: none;
         }
 
         .btn-primary {
@@ -121,12 +138,6 @@
                             <label for="urlSearch" class="form-label">Search URLs</label>
                             <input type="text" class="form-control" id="urlSearch" placeholder="Search in URLs...">
                         </div>
-                        <div class="col-md-4">
-                            <label for="statusFilter" class="form-label">Filter by Status Code</label>
-                            <select class="form-control" id="statusFilter">
-                                <option value="all">All Status Codes</option>
-                            </select>
-                        </div>
                     </div>
                     <div class="table-responsive" style="max-height: calc(80vh - 200px); overflow-y: auto;">
                         <table class="table" id="resultsTable">
@@ -134,7 +145,12 @@
                                 <tr>
                                     <th>Original URL</th>
                                     <th>Final URL</th>
-                                    <th>Status Codes</th>
+                                    <th>
+                                        Status Codes
+                                        <select class="form-control form-control-sm mt-1" id="statusFilter">
+                                            <option value="all">All Status Codes</option>
+                                        </select>
+                                    </th>
                                     <th>Has Redirect</th>
                                 </tr>
                             </thead>
