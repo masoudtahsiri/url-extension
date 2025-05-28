@@ -19,31 +19,56 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 function normalizeUrlForFetch(url) {
+  // Only add https:// if missing
   if (!/^https?:\/\//i.test(url)) {
-    return 'https://' + url;
+    url = 'https://' + url;
   }
   return url;
 }
 
+function normalizeUrlForComparison(url) {
+  // Remove protocol, www, and trailing slash, convert to lowercase
+  return url.toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/^www\./, '')
+    .replace(/\/$/, '');  // Remove trailing slash
+}
+
+function getPath(url) {
+  // Get just the path part after the domain
+  const urlObj = new URL(url);
+  return urlObj.pathname.replace(/\/$/, ''); // Remove trailing slash
+}
+
 async function checkUrl(url) {
   try {
-    // Normalize the input URL for fetch
-    url = normalizeUrlForFetch(url);
-    const normalizedInputUrl = url.toLowerCase().trim();
+    // Store original URL for display
+    const originalUrl = url;
+    
+    // Only add https:// if missing for the fetch
+    if (!/^https?:\/\//i.test(url)) {
+      url = 'https://' + url;
+    }
     
     const response = await fetch(url, {
       method: 'GET',
       redirect: 'follow'
     });
 
-    // Normalize the final URL
-    const normalizedFinalUrl = response.url.toLowerCase().trim();
+    // Get the actual paths for comparison
+    const inputPath = getPath(url);
+    const finalPath = getPath(response.url);
     
-    // Compare normalized URLs
-    const hasRedirect = normalizedInputUrl !== normalizedFinalUrl;
+    console.log('Input URL:', url);
+    console.log('Response URL:', response.url);
+    console.log('Input Path:', inputPath);
+    console.log('Final Path:', finalPath);
+    
+    // Consider it a redirect if the paths are different
+    const hasRedirect = inputPath !== finalPath;
 
     return {
-      url: url,
+      url: originalUrl,
       source_url: url,
       target_url: response.url,
       status: response.status,
