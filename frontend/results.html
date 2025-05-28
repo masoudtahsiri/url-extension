@@ -18,6 +18,7 @@
             --success-color: #00A878;
             --warning-color: #F59E0B;
             --error-color: #EF4444;
+            --table-min-height: 220px;
         }
 
         body {
@@ -135,11 +136,10 @@
                 <div id="resultsSection" style="display: none;">
                     <div class="row mb-3">
                         <div class="col-md-4">
-                            <label for="urlSearch" class="form-label">Search URLs</label>
-                            <input type="text" class="form-control" id="urlSearch" placeholder="Search in URLs...">
+                            <input type="text" class="form-control" id="urlSearch" placeholder="Search in URLs..." style="border: 2px solid #00A878; box-shadow: 0 2px 8px rgba(0,168,120,0.08); font-weight: 600; color: #046A38;">
                         </div>
                     </div>
-                    <div class="table-responsive" style="max-height: calc(80vh - 200px); overflow-y: auto;">
+                    <div class="table-responsive" style="max-height: calc(80vh - 200px); overflow-y: auto; min-height: var(--table-min-height);">
                         <table class="table" id="resultsTable">
                             <thead>
                                 <tr>
@@ -147,9 +147,10 @@
                                     <th>Final URL</th>
                                     <th>
                                         Status Codes
-                                        <select class="form-control form-control-sm mt-1" id="statusFilter">
-                                            <option value="all">All Status Codes</option>
-                                        </select>
+                                        <span id="statusFilterIcon" style="cursor:pointer; margin-left:4px; vertical-align:middle;">
+                                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;"><path d="M2 4H14L9.5 9.5V13L6.5 14V9.5L2 4Z" stroke="#046A38" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                        </span>
+                                        <div id="statusFilterDropdown" style="display:none; position:absolute; z-index:1000; background:white; border:1px solid #E2E8F0; border-radius:0.25rem; box-shadow:0 2px 8px rgba(0,0,0,0.08); min-width:120px; max-height:260px; overflow-y:auto;"></div>
                                     </th>
                                     <th>Has Redirect</th>
                                 </tr>
