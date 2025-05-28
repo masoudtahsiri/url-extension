@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "URL Checker Extension",
+  "name": "HTTP Status",
   "version": "1.0.0",
-  "description": "Check URLs for safety and information",
+  "description": "Check HTTP status codes and redirects for URLs",
   "permissions": [
     "activeTab",
     "storage",
