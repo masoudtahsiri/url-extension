@@ -285,7 +285,7 @@ async function checkUrl(url) {
   
   // Normalize URL
   if (!/^https?:\/\//i.test(url)) {
-    url = 'https://' + url;
+    url = 'http://' + url;
   }
 
   console.log('Normalized URL:', url);
@@ -412,9 +412,19 @@ function buildResult(originalUrl, startUrl, tracking) {
   const cleanStartUrl = startUrl.trim();
   const cleanFinalUrl = finalUrl.trim();
   
-  // Check if there's a redirect based on redirect data or URL change
-  const hasRedirect = (tracking.redirects && tracking.redirects.length > 0) || 
-                     (cleanStartUrl !== cleanFinalUrl);
+  // Check if there's a redirect based on status codes
+  let hasRedirect = false;
+
+  // Check if initial status is a redirect code (3xx)
+  if (tracking.allResponses && tracking.allResponses.length > 0) {
+    const initialStatus = tracking.allResponses[0].status;
+    hasRedirect = initialStatus >= 300 && initialStatus < 400;
+  }
+
+  // Also check if we have explicit redirect data
+  if (!hasRedirect && tracking.redirects && tracking.redirects.length > 0) {
+    hasRedirect = true;
+  }
   
   const result = {
     url: originalUrl,

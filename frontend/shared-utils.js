@@ -3,18 +3,11 @@
 
 function normalizeUrl(url) {
     try {
-        // Add https:// if missing
+        // Just add http:// if missing, don't do any other normalization
         if (!/^https?:\/\//i.test(url)) {
-            url = 'https://' + url;
+            url = 'http://' + url;
         }
-        const u = new URL(url);
-        // Remove www. from hostname
-        let host = u.hostname.replace(/^www\./, '');
-        // Remove trailing slash from pathname
-        let path = u.pathname.replace(/\/$/, '');
-        // Keep query string, ignore fragment
-        let query = u.search;
-        return `${host}${path}${query}`;
+        return url;
     } catch (e) {
         return url; // fallback if URL parsing fails
     }
