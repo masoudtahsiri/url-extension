@@ -93,28 +93,15 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         filteredResults.forEach(result => {
             const row = tbody.insertRow();
-            let statusCodes = [];
-            if (result.status) {
-                statusCodes.push(result.status);
-            }
-            if (result.redirect_chain && result.redirect_chain.length > 0) {
-                result.redirect_chain.forEach((redirect, index) => {
-                    if (redirect.status) {
-                        statusCodes.push(redirect.status);
-                    }
-                    if (redirect.final_status && index === result.redirect_chain.length - 1) {
-                        statusCodes.push(redirect.final_status);
-                    }
-                });
-            } else if (result.final_status && result.final_status !== result.status) {
-                statusCodes.push(result.final_status);
-            }
+            const statusCodes = extractStatusCodes(result); // Using shared function
+            
             const cells = [
-                normalizeUrl(result.source_url || result.url || ''),
-                normalizeUrl(result.target_url || result.final_url || ''),
+                normalizeUrl(result.source_url || result.url || ''), // Using shared function
+                normalizeUrl(result.target_url || result.final_url || ''), // Using shared function
                 statusCodes.join(' → '),
                 result.hasRedirect ? 'yes' : 'no'
             ];
+            
             cells.forEach(cellData => {
                 const cell = row.insertCell();
                 cell.textContent = cellData;
@@ -196,24 +183,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const csvContent = [
                 'Original URL,Final URL,Status Codes,Has Redirect',
                 ...results.map(result => {
-                    let statusCodes = [];
-                    if (result.status) {
-                        statusCodes.push(result.status);
-                    }
-                    if (result.redirect_chain && result.redirect_chain.length > 0) {
-                        result.redirect_chain.forEach((redirect, index) => {
-                            if (redirect.status) {
-                                statusCodes.push(redirect.status);
-                            }
-                            if (redirect.final_status && index === result.redirect_chain.length - 1) {
-                                statusCodes.push(redirect.final_status);
-                            }
-                        });
-                    } else if (result.final_status && result.final_status !== result.status) {
-                        statusCodes.push(result.final_status);
-                    }
+                    const statusCodes = extractStatusCodes(result); // Using shared function
                     return [
-                        escapeCSV(normalizeUrl(result.source_url || result.url || '')),
+                        escapeCSV(normalizeUrl(result.source_url || result.url || '')), // Using shared functions
                         escapeCSV(normalizeUrl(result.target_url || result.final_url || '')),
                         escapeCSV(statusCodes.join(' → ')),
                         escapeCSV(result.hasRedirect ? 'yes' : 'no')

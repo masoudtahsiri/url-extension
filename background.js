@@ -1,7 +1,17 @@
-// Background script for URL Checker Extension
+// background.js - HTTP Status Peek Extension
+// Organized into clear sections for better maintainability
+
+// =================================================================
+// INITIALIZATION
+// =================================================================
+
 chrome.runtime.onInstalled.addListener(() => {
   console.log('HTTP Status Peek Extension installed');
 });
+
+// =================================================================
+// REQUEST TRACKING
+// =================================================================
 
 // Store for tracking requests by tabId
 const requestTracking = new Map();
@@ -19,6 +29,21 @@ function logRequest(type, details, extra = {}) {
     ...extra
   });
 }
+
+// Clean up old tracking data periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [tabId, data] of requestTracking.entries()) {
+    // Remove tracking data older than 5 minutes
+    if (data.timestamp && now - data.timestamp > 300000) {
+      requestTracking.delete(tabId);
+    }
+  }
+}, 60000); // Run every minute
+
+// =================================================================
+// MESSAGE HANDLING
+// =================================================================
 
 // Listen for messages from the popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -38,6 +63,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true; // Keep message channel open for async response
   }
 });
+
+// =================================================================
+// WEB REQUEST HANDLERS
+// =================================================================
 
 // Track when requests start
 chrome.webRequest.onBeforeRequest.addListener(
@@ -244,6 +273,10 @@ chrome.webRequest.onErrorOccurred.addListener(
   { urls: ["<all_urls>"] }
 );
 
+// =================================================================
+// URL CHECKING LOGIC
+// =================================================================
+
 // Main function to check URL
 async function checkUrl(url) {
   // Clean any whitespace/newline characters
@@ -260,6 +293,7 @@ async function checkUrl(url) {
   return new Promise((resolve, reject) => {
     let tabId = null;
     let isComplete = false;
+    const startTime = Date.now(); // Track when we start
 
     // Create a background tab
     chrome.tabs.create({ 
@@ -328,6 +362,14 @@ async function checkUrl(url) {
           
           // Wait for tab to complete loading and we have tracking data
           if (tab.status === 'complete' && tracking && tracking.completed) {
+            // Add a check for minimum elapsed time
+            const elapsedTime = Date.now() - startTime;
+            if (elapsedTime < 1000) {
+              // Don't consider it done too quickly
+              console.log(`Not done yet - only ${elapsedTime}ms elapsed`);
+              return;
+            }
+
             console.log('Tab loading complete with tracking data');
             clearInterval(checkInterval);
             
@@ -345,13 +387,17 @@ async function checkUrl(url) {
               cleanup();
               const result = buildResult(originalUrl, url, tracking);
               resolve(result);
-            }, 500); // Short wait for final events
+            }, 2000); // Increased wait time to 2000ms
           }
         });
       }, 500); // Check every 500ms
     });
   });
 }
+
+// =================================================================
+// RESULT BUILDING
+// =================================================================
 
 // Build the result from tracking data
 function buildResult(originalUrl, startUrl, tracking) {
@@ -472,14 +518,3 @@ function buildRedirectChain(tracking) {
   
   return chain;
 }
-
-// Clean up old tracking data periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [tabId, data] of requestTracking.entries()) {
-    // Remove tracking data older than 5 minutes
-    if (data.timestamp && now - data.timestamp > 300000) {
-      requestTracking.delete(tabId);
-    }
-  }
-}, 60000); // Run every minute
