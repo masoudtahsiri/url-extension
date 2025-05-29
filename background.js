@@ -6,11 +6,29 @@ chrome.runtime.onInstalled.addListener(() => {
 // Store for tracking requests by tabId
 const requestTracking = new Map();
 
+// Enhanced logging function
+function logRequest(type, details, extra = {}) {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ${type}:`, {
+    url: details.url,
+    tabId: details.tabId,
+    requestId: details.requestId,
+    statusCode: details.statusCode,
+    type: details.type,
+    frameId: details.frameId,
+    ...extra
+  });
+}
+
 // Listen for messages from the popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'checkUrl') {
+    console.log('=== STARTING URL CHECK ===');
+    console.log('Target URL:', request.url);
     checkUrl(request.url)
       .then(result => {
+        console.log('=== FINAL RESULT ===');
+        console.log(JSON.stringify(result, null, 2));
         sendResponse({ status: 'success', data: result });
       })
       .catch(error => {
@@ -21,30 +39,103 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-// Track all main frame requests
-chrome.webRequest.onResponseStarted.addListener(
+// Track when requests start
+chrome.webRequest.onBeforeRequest.addListener(
   function(details) {
-    // Only track main frame requests
     if (details.type !== 'main_frame') return;
+    
+    logRequest('BEFORE_REQUEST', details);
     
     if (!requestTracking.has(details.tabId)) {
       requestTracking.set(details.tabId, {
         requests: [],
         redirects: [],
-        initialUrl: details.url
+        initialUrl: details.url,
+        requestSequence: [],
+        allResponses: []
+      });
+    }
+    
+    const tracking = requestTracking.get(details.tabId);
+    tracking.requestSequence.push({
+      event: 'onBeforeRequest',
+      url: details.url,
+      requestId: details.requestId,
+      timestamp: Date.now()
+    });
+  },
+  { urls: ["<all_urls>"] }
+);
+
+// Track ALL responses including redirects using onHeadersReceived
+chrome.webRequest.onHeadersReceived.addListener(
+  function(details) {
+    if (details.type !== 'main_frame') return;
+    
+    logRequest('HEADERS_RECEIVED', details, {
+      statusLine: details.statusLine
+    });
+    
+    if (!requestTracking.has(details.tabId)) {
+      requestTracking.set(details.tabId, {
+        requests: [],
+        redirects: [],
+        initialUrl: details.url,
+        requestSequence: [],
+        allResponses: []
       });
     }
     
     const tracking = requestTracking.get(details.tabId);
     
-    // Store all requests with their status codes
-    tracking.requests.push({
+    // Store ALL responses with their status codes
+    tracking.allResponses.push({
       url: details.url,
       status: details.statusCode,
+      requestId: details.requestId,
+      statusLine: details.statusLine,
       timestamp: Date.now()
     });
     
-    console.log(`Request: ${details.url} -> ${details.statusCode}`);
+    tracking.requestSequence.push({
+      event: 'onHeadersReceived',
+      url: details.url,
+      status: details.statusCode,
+      statusLine: details.statusLine,
+      requestId: details.requestId,
+      timestamp: Date.now()
+    });
+  },
+  { urls: ["<all_urls>"] },
+  ["responseHeaders"]
+);
+
+// Keep onResponseStarted for logging and tracking final responses
+chrome.webRequest.onResponseStarted.addListener(
+  function(details) {
+    if (details.type !== 'main_frame') return;
+    
+    logRequest('RESPONSE_STARTED', details);
+    
+    if (requestTracking.has(details.tabId)) {
+      const tracking = requestTracking.get(details.tabId);
+      
+      // This is the final successful response
+      tracking.requests.push({
+        url: details.url,
+        status: details.statusCode,
+        requestId: details.requestId,
+        timestamp: Date.now()
+      });
+      
+      tracking.requestSequence.push({
+        event: 'onResponseStarted',
+        url: details.url,
+        status: details.statusCode,
+        requestId: details.requestId,
+        timestamp: Date.now()
+      });
+    }
   },
   { urls: ["<all_urls>"] }
 );
@@ -55,25 +146,39 @@ chrome.webRequest.onBeforeRedirect.addListener(
     // Only track main frame requests
     if (details.type !== 'main_frame') return;
     
+    logRequest('BEFORE_REDIRECT', details, {
+      redirectUrl: details.redirectUrl
+    });
+    
     if (!requestTracking.has(details.tabId)) {
       requestTracking.set(details.tabId, {
         requests: [],
         redirects: [],
-        initialUrl: details.url
+        initialUrl: details.url,
+        requestSequence: [],
+        allResponses: []
       });
     }
     
     const tracking = requestTracking.get(details.tabId);
     
-    // Store redirect information
+    // Store redirect information - use the actual redirectUrl from the event
     tracking.redirects.push({
       fromUrl: details.url,
-      toUrl: details.redirectUrl,
+      toUrl: details.redirectUrl, // This should already have the correct protocol
       status: details.statusCode,
+      requestId: details.requestId,
       timestamp: Date.now()
     });
     
-    console.log(`Redirect: ${details.url} -> ${details.redirectUrl} (${details.statusCode})`);
+    tracking.requestSequence.push({
+      event: 'onBeforeRedirect',
+      fromUrl: details.url,
+      toUrl: details.redirectUrl,
+      status: details.statusCode,
+      requestId: details.requestId,
+      timestamp: Date.now()
+    });
   },
   { urls: ["<all_urls>"] }
 );
@@ -84,13 +189,29 @@ chrome.webRequest.onCompleted.addListener(
     // Only track main frame requests
     if (details.type !== 'main_frame') return;
     
+    logRequest('COMPLETED', details, {
+      fromCache: details.fromCache
+    });
+    
     if (requestTracking.has(details.tabId)) {
       const tracking = requestTracking.get(details.tabId);
       tracking.finalUrl = details.url;
       tracking.finalStatus = details.statusCode;
       tracking.completed = true;
       
-      console.log(`Completed: ${details.url} (${details.statusCode})`);
+      tracking.requestSequence.push({
+        event: 'onCompleted',
+        url: details.url,
+        status: details.statusCode,
+        requestId: details.requestId,
+        timestamp: Date.now()
+      });
+      
+      // Log the complete sequence for this tab
+      console.log('=== REQUEST SEQUENCE FOR TAB', details.tabId, '===');
+      tracking.requestSequence.forEach((seq, index) => {
+        console.log(`${index + 1}. [${seq.event}] ${seq.url || seq.fromUrl} (${seq.status || 'N/A'})`);
+      });
     }
   },
   { urls: ["<all_urls>"] }
@@ -102,12 +223,22 @@ chrome.webRequest.onErrorOccurred.addListener(
     // Only track main frame requests
     if (details.type !== 'main_frame') return;
     
+    logRequest('ERROR_OCCURRED', details, {
+      error: details.error
+    });
+    
     if (requestTracking.has(details.tabId)) {
       const tracking = requestTracking.get(details.tabId);
       tracking.error = details.error;
       tracking.finalStatus = 0;
       
-      console.log(`Error: ${details.url} - ${details.error}`);
+      tracking.requestSequence.push({
+        event: 'onErrorOccurred',
+        url: details.url,
+        error: details.error,
+        requestId: details.requestId,
+        timestamp: Date.now()
+      });
     }
   },
   { urls: ["<all_urls>"] }
@@ -115,12 +246,16 @@ chrome.webRequest.onErrorOccurred.addListener(
 
 // Main function to check URL
 async function checkUrl(url) {
+  // Clean any whitespace/newline characters
+  url = url.trim();
   const originalUrl = url;
   
   // Normalize URL
   if (!/^https?:\/\//i.test(url)) {
     url = 'https://' + url;
   }
+
+  console.log('Normalized URL:', url);
 
   return new Promise((resolve, reject) => {
     let tabId = null;
@@ -133,18 +268,24 @@ async function checkUrl(url) {
       pinned: true
     }, (tab) => {
       tabId = tab.id;
+      console.log('Created tab with ID:', tabId);
       
       // Initialize tracking for this tab
+      requestTracking.delete(tabId); // Clear any old data first
       requestTracking.set(tabId, {
         requests: [],
         redirects: [],
-        initialUrl: url
+        initialUrl: url,
+        requestSequence: [],
+        allResponses: []
       });
 
       // Set a timeout
       const timeout = setTimeout(() => {
+        console.log('TIMEOUT: Request took too long');
         cleanup();
         const tracking = requestTracking.get(tabId) || {};
+        console.log('Tracking data at timeout:', tracking);
         const result = buildResult(originalUrl, url, tracking);
         resolve(result);
       }, 15000); // 15 second timeout
@@ -162,7 +303,9 @@ async function checkUrl(url) {
       };
 
       // Check tab status periodically
+      let checkCount = 0;
       const checkInterval = setInterval(() => {
+        checkCount++;
         if (isComplete) {
           clearInterval(checkInterval);
           return;
@@ -170,6 +313,7 @@ async function checkUrl(url) {
 
         chrome.tabs.get(tabId, (tab) => {
           if (chrome.runtime.lastError || !tab) {
+            console.log('Tab error or not found');
             clearInterval(checkInterval);
             cleanup();
             const tracking = requestTracking.get(tabId) || {};
@@ -180,13 +324,23 @@ async function checkUrl(url) {
 
           const tracking = requestTracking.get(tabId);
           
+          console.log(`Check #${checkCount} - Tab status: ${tab.status}, URL: ${tab.url}, Tracking completed: ${tracking?.completed}`);
+          
           // Wait for tab to complete loading and we have tracking data
           if (tab.status === 'complete' && tracking && tracking.completed) {
+            console.log('Tab loading complete with tracking data');
             clearInterval(checkInterval);
             
             // Wait a bit for any final webRequest events
             setTimeout(() => {
               tracking.finalUrl = tracking.finalUrl || tab.url;
+              
+              console.log('=== FINAL TRACKING DATA ===');
+              console.log('Requests:', tracking.requests);
+              console.log('Redirects:', tracking.redirects);
+              console.log('All Responses:', tracking.allResponses);
+              console.log('Final URL:', tracking.finalUrl);
+              console.log('Final Status:', tracking.finalStatus);
               
               cleanup();
               const result = buildResult(originalUrl, url, tracking);
@@ -201,8 +355,20 @@ async function checkUrl(url) {
 
 // Build the result from tracking data
 function buildResult(originalUrl, startUrl, tracking) {
+  console.log('=== BUILDING RESULT ===');
+  console.log('Original URL:', originalUrl);
+  console.log('Start URL:', startUrl);
+  console.log('Tracking:', tracking);
+  
   const finalUrl = tracking.finalUrl || startUrl;
-  const hasRedirect = startUrl !== finalUrl || (tracking.redirects && tracking.redirects.length > 0);
+  
+  // Clean URLs for comparison
+  const cleanStartUrl = startUrl.trim();
+  const cleanFinalUrl = finalUrl.trim();
+  
+  // Check if there's a redirect based on redirect data or URL change
+  const hasRedirect = (tracking.redirects && tracking.redirects.length > 0) || 
+                     (cleanStartUrl !== cleanFinalUrl);
   
   const result = {
     url: originalUrl,
@@ -211,19 +377,24 @@ function buildResult(originalUrl, startUrl, tracking) {
     hasRedirect: hasRedirect
   };
 
-  // Build the redirect chain from both requests and redirects data
-  if (hasRedirect && tracking.requests && tracking.requests.length > 0) {
+  // Build the status code chain
+  if (hasRedirect) {
     const chain = buildRedirectChain(tracking);
+    
+    console.log('Built redirect chain:', chain);
     
     if (chain.length > 0) {
       result.redirect_chain = chain;
-      result.status = tracking.requests[0]?.status || 301;
+    }
+    
+    // Use the first response's status for the initial status
+    if (tracking.allResponses && tracking.allResponses.length > 0) {
+      result.status = tracking.allResponses[0].status;
     } else {
-      // Fallback if we couldn't build a proper chain
       result.status = tracking.requests[0]?.status || 301;
     }
   } else {
-    // No redirects
+    // No redirects - use final status
     result.status = tracking.finalStatus || 200;
   }
 
@@ -233,60 +404,66 @@ function buildResult(originalUrl, startUrl, tracking) {
     result.status = 0;
     result.isSafe = false;
   } else {
-    // Determine if URL is safe
+    // Determine if URL is safe based on final status
     const finalStatus = tracking.finalStatus || result.status;
     result.isSafe = finalStatus >= 200 && finalStatus < 400;
   }
 
+  console.log('Built result:', result);
   return result;
 }
 
 // Build a proper redirect chain from requests and redirects data
 function buildRedirectChain(tracking) {
+  console.log('=== BUILDING REDIRECT CHAIN ===');
   const chain = [];
-  const { requests, redirects } = tracking;
+  const { allResponses, redirects } = tracking;
   
-  // Sort requests by timestamp
-  const sortedRequests = [...requests].sort((a, b) => a.timestamp - b.timestamp);
+  console.log('All responses:', allResponses);
+  console.log('All redirects with details:', JSON.stringify(redirects, null, 2));
   
-  // Build the chain
-  for (let i = 0; i < sortedRequests.length - 1; i++) {
-    const currentRequest = sortedRequests[i];
-    const nextRequest = sortedRequests[i + 1];
+  // If we have explicit redirect data, use it
+  if (redirects && redirects.length > 0) {
+    // Sort redirects by timestamp
+    const sortedRedirects = [...redirects].sort((a, b) => a.timestamp - b.timestamp);
     
-    // Check if this was a redirect
-    const redirect = redirects.find(r => 
-      r.fromUrl === currentRequest.url && 
-      r.toUrl === nextRequest.url
-    );
-    
-    if (redirect) {
-      const chainItem = {
-        status: currentRequest.status,
-        url: nextRequest.url
-      };
+    for (let i = 0; i < sortedRedirects.length; i++) {
+      const redirect = sortedRedirects[i];
+      console.log(`Processing redirect ${i + 1}:`, {
+        from: redirect.fromUrl,
+        to: redirect.toUrl,
+        status: redirect.status
+      });
       
-      // Add final status for the last redirect
-      if (i === sortedRequests.length - 2) {
-        chainItem.final_status = nextRequest.status;
-      }
-      
-      chain.push(chainItem);
-    }
-  }
-  
-  // If we couldn't match redirects properly, build from redirect data alone
-  if (chain.length === 0 && redirects.length > 0) {
-    for (let i = 0; i < redirects.length; i++) {
-      const redirect = redirects[i];
       const chainItem = {
         status: redirect.status,
         url: redirect.toUrl
       };
       
       // Add final status to last redirect
-      if (i === redirects.length - 1 && tracking.finalStatus) {
+      if (i === sortedRedirects.length - 1 && tracking.finalStatus) {
         chainItem.final_status = tracking.finalStatus;
+      }
+      
+      chain.push(chainItem);
+    }
+  } else if (allResponses && allResponses.length > 1) {
+    // Build chain from multiple responses
+    const sortedResponses = [...allResponses].sort((a, b) => a.timestamp - b.timestamp);
+    
+    // Create chain from all but the first response
+    for (let i = 1; i < sortedResponses.length; i++) {
+      const previousResponse = sortedResponses[i - 1];
+      const currentResponse = sortedResponses[i];
+      
+      const chainItem = {
+        status: previousResponse.status,
+        url: currentResponse.url
+      };
+      
+      // Add final status for the last item
+      if (i === sortedResponses.length - 1) {
+        chainItem.final_status = currentResponse.status;
       }
       
       chain.push(chainItem);
