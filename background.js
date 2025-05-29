@@ -332,7 +332,7 @@ async function checkUrl(url) {
           // Clean up tracking after a delay
           setTimeout(() => {
             requestTracking.delete(tabId);
-          }, 1000);
+          }, 2000); // 2 second wait time
         }
       };
 
@@ -364,7 +364,7 @@ async function checkUrl(url) {
           if (tab.status === 'complete' && tracking && tracking.completed) {
             // Add a check for minimum elapsed time
             const elapsedTime = Date.now() - startTime;
-            if (elapsedTime < 1000) {
+            if (elapsedTime < 500) {
               // Don't consider it done too quickly
               console.log(`Not done yet - only ${elapsedTime}ms elapsed`);
               return;
