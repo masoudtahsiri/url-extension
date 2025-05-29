@@ -94,4 +94,27 @@ document.addEventListener('DOMContentLoaded', function() {
     if (form) {
         form.addEventListener('submit', handleSubmit);
     }
-}); 
+
+    // Add settings button handler
+    const settingsBtn = document.getElementById('settingsBtn');
+    if (settingsBtn) {
+        settingsBtn.addEventListener('click', handleSettingsClick);
+    }
+});
+
+async function handleSettingsClick() {
+    // Check if user has Pro (for now, we'll use storage)
+    const { isPro } = await chrome.storage.sync.get('isPro');
+    
+    if (isPro) {
+        // Open settings page
+        chrome.tabs.create({ 
+            url: chrome.runtime.getURL('frontend/settings.html') 
+        });
+    } else {
+        // Open upgrade page
+        chrome.tabs.create({ 
+            url: chrome.runtime.getURL('frontend/upgrade.html') 
+        });
+    }
+} 
