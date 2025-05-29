@@ -285,7 +285,7 @@ async function checkUrl(url) {
   
   // Normalize URL
   if (!/^https?:\/\//i.test(url)) {
-    url = 'http://' + url;
+    url = 'https://' + url;
   }
 
   console.log('Normalized URL:', url);

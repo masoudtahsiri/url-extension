@@ -3,9 +3,9 @@
 
 function normalizeUrl(url) {
     try {
-        // Just add http:// if missing, don't do any other normalization
+        // Only add https:// if missing, don't normalize anything else
         if (!/^https?:\/\//i.test(url)) {
-            url = 'http://' + url;
+            url = 'https://' + url;
         }
         return url;
     } catch (e) {
@@ -23,25 +23,23 @@ function escapeCSV(value) {
 function extractStatusCodes(result) {
     const statusCodes = [];
     
-    // Always add the initial status
-    if (result.status) {
-        statusCodes.push(result.status);
-    }
-    
-    // Add all redirect statuses
+    // If there's a redirect chain, use it for all status codes
     if (result.redirect_chain && result.redirect_chain.length > 0) {
-        result.redirect_chain.forEach((redirect, index) => {
-            if (redirect.status) {
-                statusCodes.push(redirect.status);
-            }
-            // Only add final_status for the last redirect
-            if (redirect.final_status && index === result.redirect_chain.length - 1) {
-                statusCodes.push(redirect.final_status);
-            }
-        });
-    } else if (result.final_status && result.final_status !== result.status) {
-        // If no redirect chain but a different final_status, add it
-        statusCodes.push(result.final_status);
+        // Add initial status first
+        if (result.status) {
+            statusCodes.push(result.status);
+        }
+        
+        // Add final status from the last redirect
+        const lastRedirect = result.redirect_chain[result.redirect_chain.length - 1];
+        if (lastRedirect.final_status) {
+            statusCodes.push(lastRedirect.final_status);
+        }
+    } else {
+        // No redirects - just add the status
+        if (result.status) {
+            statusCodes.push(result.status);
+        }
     }
     
     return statusCodes;

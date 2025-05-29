@@ -116,25 +116,6 @@ document.addEventListener('DOMContentLoaded', function() {
         return value;
     }
 
-    function normalizeUrl(url) {
-        try {
-            // Add https:// if missing
-            if (!/^https?:\/\//i.test(url)) {
-                url = 'https://' + url;
-            }
-            const u = new URL(url);
-            // Remove www. from hostname
-            let host = u.hostname.replace(/^www\./, '');
-            // Remove trailing slash from pathname
-            let path = u.pathname.replace(/\/$/, '');
-            // Keep query string, ignore fragment
-            let query = u.search;
-            return `${host}${path}${query}`;
-        } catch (e) {
-            return url; // fallback if URL parsing fails
-        }
-    }
-
     // Get URLs from chrome.storage
     chrome.storage.local.get(['urlsToCheck'], function(result) {
         if (result.urlsToCheck && result.urlsToCheck.length > 0) {
@@ -166,8 +147,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         url: url
                     });
                     if (response && response.status === 'success') {
-                        // Attach normalized URL for display/export
-                        response.data.normalized_url = normalizeUrl(url);
                         results.push(response.data);
                     }
                 } catch (error) {
