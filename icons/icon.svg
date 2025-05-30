@@ -1,6 +1,65 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
-    <rect width="128" height="128" rx="24" fill="#00A878"/>
-    <path d="M64 32C45.2 32 30 47.2 30 66C30 84.8 45.2 100 64 100C82.8 100 98 84.8 98 66C98 47.2 82.8 32 64 32ZM64 92C49.6 92 38 80.4 38 66C38 51.6 49.6 40 64 40C78.4 40 90 51.6 90 66C90 80.4 78.4 92 64 92Z" fill="white"/>
-    <path d="M64 48C55.2 48 48 55.2 48 64C48 72.8 55.2 80 64 80C72.8 80 80 72.8 80 64C80 55.2 72.8 48 64 48ZM64 72C58.5 72 54 67.5 54 62C54 56.5 58.5 52 64 52C69.5 52 74 56.5 74 62C74 67.5 69.5 72 64 72Z" fill="white"/>
+    <!-- Background -->
+    <defs>
+        <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#00A878;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#046A38;stop-opacity:1" />
+        </linearGradient>
+    </defs>
+    
+    <rect width="128" height="128" rx="24" fill="url(#bgGradient)"/>
+    
+    <!-- Main Design: Stylized link with status codes -->
+    <g>
+        <!-- Link chain icon -->
+        <path d="M 52 76
+                 C 52 82 46 88 40 88
+                 L 36 88
+                 C 30 88 24 82 24 76
+                 L 24 52
+                 C 24 46 30 40 36 40
+                 L 40 40
+                 C 46 40 52 46 52 52
+                 L 52 56"
+              fill="none"
+              stroke="white"
+              stroke-width="8"
+              stroke-linecap="round"/>
+        
+        <path d="M 76 52
+                 C 76 46 82 40 88 40
+                 L 92 40
+                 C 98 40 104 46 104 52
+                 L 104 76
+                 C 104 82 98 88 92 88
+                 L 88 88
+                 C 82 88 76 82 76 76
+                 L 76 72"
+              fill="none"
+              stroke="white"
+              stroke-width="8"
+              stroke-linecap="round"/>
+        
+        <!-- Center connecting piece -->
+        <rect x="48" y="60" width="32" height="8" rx="4" fill="white"/>
+        
+        <!-- Status code indicators -->
+        <g>
+            <!-- 301 redirect indicator -->
+            <rect x="32" y="96" width="28" height="16" rx="8" fill="white" opacity="0.9"/>
+            <text x="46" y="107" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#046A38">301</text>
+            
+            <!-- Arrow -->
+            <path d="M 62 104 L 66 104 M 64 102 L 66 104 L 64 106" 
+                  stroke="white" 
+                  stroke-width="2" 
+                  stroke-linecap="round" 
+                  stroke-linejoin="round"/>
+            
+            <!-- 200 OK indicator -->
+            <rect x="68" y="96" width="28" height="16" rx="8" fill="white"/>
+            <text x="82" y="107" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#00A878">200</text>
+        </g>
+    </g>
 </svg> 
