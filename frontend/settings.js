@@ -21,16 +21,21 @@ document.addEventListener('DOMContentLoaded', function() {
     chrome.storage.sync.get(['isPro'], function(result) {
         isPro = result.isPro || false;
         
+        // Update version badge
+        const versionBadge = document.getElementById('versionBadge');
+        if (versionBadge) {
+            if (isPro) {
+                versionBadge.textContent = 'PRO VERSION';
+                versionBadge.style.background = 'rgba(255, 255, 255, 0.2)';
+            } else {
+                versionBadge.textContent = 'FREE VERSION';
+                versionBadge.style.background = 'rgba(255, 255, 255, 0.15)';
+            }
+        }
+        
         if (!isPro) {
             // Show overlay for non-pro users
             document.getElementById('googleSheetsCard').classList.add('locked');
-            
-            // Update header to show free version
-            const header = document.querySelector('.settings-header .badge');
-            if (header) {
-                header.textContent = 'FREE VERSION';
-                header.style.background = 'rgba(255, 255, 255, 0.2)';
-            }
         }
         
         // Load settings and stats regardless of pro status
@@ -43,6 +48,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // Event listeners
     document.getElementById('connectGoogleBtn').addEventListener('click', connectGoogle);
     document.getElementById('disconnectGoogleBtn').addEventListener('click', disconnectGoogle);
+    document.getElementById('disconnectGoogleBtn').addEventListener('mouseenter', function() {
+        this.textContent = 'Disconnect';
+    });
+    document.getElementById('disconnectGoogleBtn').addEventListener('mouseleave', function() {
+        this.textContent = 'Connected';
+    });
     
     // Upgrade button in overlay
     const upgradeOverlayBtn = document.getElementById('upgradeOverlayBtn');
@@ -110,19 +121,35 @@ function updateGoogleStatus(connected, email = null) {
         statusDiv.classList.remove('disconnected');
         statusDiv.classList.add('connected');
         emailSpan.textContent = email || 'Connected';
+        emailSpan.style.color = '#00A878';
+        emailSpan.style.fontWeight = '500';
         connectBtn.style.display = 'none';
         disconnectBtn.style.display = 'inline-block';
     } else {
         statusDiv.classList.remove('connected');
         statusDiv.classList.add('disconnected');
         emailSpan.textContent = 'Not connected';
+        emailSpan.style.color = '#64748B';
+        emailSpan.style.fontWeight = '400';
         connectBtn.style.display = 'inline-block';
         disconnectBtn.style.display = 'none';
     }
 }
 
 function connectGoogle() {
+    const connectBtn = document.getElementById('connectGoogleBtn');
+    const originalText = connectBtn.textContent;
+    
+    // Add loading state
+    connectBtn.classList.add('loading');
+    connectBtn.disabled = true;
+    
     chrome.identity.getAuthToken({ interactive: true }, (token) => {
+        // Remove loading state
+        connectBtn.classList.remove('loading');
+        connectBtn.disabled = false;
+        connectBtn.textContent = originalText;
+        
         if (chrome.runtime.lastError) {
             showAlert('Failed to connect Google account', 'danger');
             return;
@@ -136,13 +163,31 @@ function connectGoogle() {
 }
 
 function disconnectGoogle() {
+    const disconnectBtn = document.getElementById('disconnectGoogleBtn');
+    
+    // Add loading state
+    disconnectBtn.classList.add('loading');
+    disconnectBtn.disabled = true;
+    
     chrome.identity.getAuthToken({ interactive: false }, (token) => {
         if (token) {
             chrome.identity.removeCachedAuthToken({ token: token }, () => {
                 fetch(`https://accounts.google.com/o/oauth2/revoke?token=${token}`)
                     .then(() => {
+                        // Remove loading state
+                        disconnectBtn.classList.remove('loading');
+                        disconnectBtn.disabled = false;
+                        disconnectBtn.textContent = 'Connected';
+                        
                         updateGoogleStatus(false);
                         showAlert('Google account disconnected', 'info');
+                    })
+                    .catch(() => {
+                        // Remove loading state on error
+                        disconnectBtn.classList.remove('loading');
+                        disconnectBtn.disabled = false;
+                        disconnectBtn.textContent = 'Connected';
+                        showAlert('Error disconnecting account', 'danger');
                     });
             });
         }
