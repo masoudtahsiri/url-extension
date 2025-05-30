@@ -1,4 +1,4 @@
-// frontend/settings.js
+// frontend/settings.js - Simplified for Google Sheets integration
 
 // User agent strings
 const USER_AGENTS = {
@@ -23,15 +23,108 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Load settings
-    loadSettings();
+    // Load settings and stats
+    loadGoogleStatus();
+    loadStats();
 
     // Event listeners
-    document.getElementById('userAgent').addEventListener('change', handleUserAgentChange);
-    document.getElementById('addHeaderBtn').addEventListener('click', addHeaderRow);
-    document.getElementById('basicAuthEnabled').addEventListener('change', handleBasicAuthToggle);
-    document.getElementById('saveBtn').addEventListener('click', saveSettings);
+    document.getElementById('connectGoogleBtn').addEventListener('click', connectGoogle);
+    document.getElementById('disconnectGoogleBtn').addEventListener('click', disconnectGoogle);
 });
+
+function loadGoogleStatus() {
+    chrome.identity.getAuthToken({ interactive: false }, (token) => {
+        if (token) {
+            // Get user info
+            fetch('https://www.googleapis.com/oauth2/v1/userinfo?alt=json', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                updateGoogleStatus(true, data.email);
+            })
+            .catch(() => {
+                updateGoogleStatus(false);
+            });
+        } else {
+            updateGoogleStatus(false);
+        }
+    });
+}
+
+function updateGoogleStatus(connected, email = null) {
+    const statusDiv = document.getElementById('googleStatus');
+    const emailSpan = document.getElementById('googleEmail');
+    const connectBtn = document.getElementById('connectGoogleBtn');
+    const disconnectBtn = document.getElementById('disconnectGoogleBtn');
+    
+    if (connected) {
+        statusDiv.classList.remove('disconnected');
+        statusDiv.classList.add('connected');
+        emailSpan.textContent = email || 'Connected';
+        connectBtn.style.display = 'none';
+        disconnectBtn.style.display = 'inline-block';
+    } else {
+        statusDiv.classList.remove('connected');
+        statusDiv.classList.add('disconnected');
+        emailSpan.textContent = 'Not connected';
+        connectBtn.style.display = 'inline-block';
+        disconnectBtn.style.display = 'none';
+    }
+}
+
+function connectGoogle() {
+    chrome.identity.getAuthToken({ interactive: true }, (token) => {
+        if (chrome.runtime.lastError) {
+            showAlert('Failed to connect Google account', 'danger');
+            return;
+        }
+        
+        if (token) {
+            showAlert('Successfully connected Google account!', 'success');
+            loadGoogleStatus();
+        }
+    });
+}
+
+function disconnectGoogle() {
+    chrome.identity.getAuthToken({ interactive: false }, (token) => {
+        if (token) {
+            chrome.identity.removeCachedAuthToken({ token: token }, () => {
+                fetch(`https://accounts.google.com/o/oauth2/revoke?token=${token}`)
+                    .then(() => {
+                        updateGoogleStatus(false);
+                        showAlert('Google account disconnected', 'info');
+                    });
+            });
+        }
+    });
+}
+
+function loadStats() {
+    chrome.storage.local.get(['totalChecks', 'sheetsExports'], function(result) {
+        document.getElementById('totalChecks').textContent = result.totalChecks || 0;
+        document.getElementById('sheetsExports').textContent = result.sheetsExports || 0;
+    });
+}
+
+function showAlert(message, type) {
+    const alertContainer = document.getElementById('alertContainer');
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type} alert-dismissible fade show`;
+    alert.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    alertContainer.appendChild(alert);
+    
+    setTimeout(() => {
+        alert.remove();
+    }, 3000);
+}
 
 function loadSettings() {
     chrome.storage.sync.get(['proSettings'], function(result) {
@@ -149,22 +242,6 @@ function saveSettings() {
     chrome.storage.sync.set({ proSettings: settings }, function() {
         showAlert('Settings saved successfully!', 'success');
     });
-}
-
-function showAlert(message, type) {
-    const alertContainer = document.getElementById('alertContainer');
-    const alert = document.createElement('div');
-    alert.className = `alert alert-${type} alert-dismissible fade show`;
-    alert.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    
-    alertContainer.appendChild(alert);
-    
-    setTimeout(() => {
-        alert.remove();
-    }, 3000);
 }
 
 function escapeHtml(text) {

@@ -1,4 +1,4 @@
-// frontend/popup.js - Updated for Pro features
+// frontend/popup.js - Updated with URL limits for free version
 
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('urlForm');
@@ -6,6 +6,26 @@ document.addEventListener('DOMContentLoaded', function() {
     const urlCount = document.getElementById('urlCount');
     const urlsTextarea = document.getElementById('urls');
     const csvFileInput = document.getElementById('csvFile');
+    
+    let isPro = false;
+    const URL_LIMIT = 100; // Free version limit
+
+    // Check if user is pro
+    chrome.storage.sync.get(['isPro'], function(result) {
+        isPro = result.isPro || false;
+        updateUI();
+    });
+
+    function updateUI() {
+        const settingsBtn = document.getElementById('settingsBtn');
+        if (settingsBtn) {
+            if (isPro) {
+                settingsBtn.innerHTML = '<i class="fas fa-cog"></i> <span class="badge bg-warning text-dark" style="font-size: 0.6rem;">PRO</span>';
+            } else {
+                settingsBtn.innerHTML = '<i class="fas fa-cog"></i>';
+            }
+        }
+    }
 
     function countUrls(text) {
         return text.split('\n').filter(url => url.trim()).length;
@@ -14,9 +34,25 @@ document.addEventListener('DOMContentLoaded', function() {
     if (urlsTextarea && urlCount) {
         urlsTextarea.addEventListener('input', function(e) {
             const count = countUrls(e.target.value);
+            updateUrlCount(count);
+        });
+    }
+
+    function updateUrlCount(count) {
+        if (!urlCount) return;
+        
+        if (isPro) {
             urlCount.textContent = `You have entered ${count} URLs.`;
             urlCount.className = 'form-text text-primary';
-        });
+        } else {
+            if (count > URL_LIMIT) {
+                urlCount.innerHTML = `You have entered ${count} URLs. <span class="text-warning">Only the first ${URL_LIMIT} will be checked in free version.</span>`;
+                urlCount.className = 'form-text text-warning';
+            } else {
+                urlCount.textContent = `You have entered ${count} URLs (${URL_LIMIT - count} remaining).`;
+                urlCount.className = 'form-text text-primary';
+            }
+        }
     }
 
     async function handleSubmit(event) {
@@ -59,11 +95,27 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
 
-                console.log(`Found ${urls.length} valid URLs in CSV file`);
-                
-                // Get pro settings before opening results tab
-                const proSettings = await getProSettings();
-                openResultsTab(urls, proSettings);
+                // Apply URL limit for free users
+                if (!isPro && urls.length > URL_LIMIT) {
+                    const limitedUrls = urls.slice(0, URL_LIMIT);
+                    const skipped = urls.length - URL_LIMIT;
+                    
+                    const confirmed = confirm(
+                        `You have ${urls.length} URLs but the free version is limited to ${URL_LIMIT} URLs.\n\n` +
+                        `Only the first ${URL_LIMIT} URLs will be checked. ${skipped} URLs will be skipped.\n\n` +
+                        `Upgrade to Pro for unlimited URL checks.\n\n` +
+                        `Continue with ${URL_LIMIT} URLs?`
+                    );
+                    
+                    if (!confirmed) {
+                        return;
+                    }
+                    
+                    urls = limitedUrls;
+                }
+
+                console.log(`Processing ${urls.length} URLs`);
+                openResultsTab(urls);
             };
 
             reader.onerror = function() {
@@ -83,36 +135,33 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // Get pro settings before opening results tab
-        const proSettings = await getProSettings();
-        openResultsTab(urls, proSettings);
+        // Apply URL limit for free users
+        if (!isPro && urls.length > URL_LIMIT) {
+            const limitedUrls = urls.slice(0, URL_LIMIT);
+            const skipped = urls.length - URL_LIMIT;
+            
+            const confirmed = confirm(
+                `You have ${urls.length} URLs but the free version is limited to ${URL_LIMIT} URLs.\n\n` +
+                `Only the first ${URL_LIMIT} URLs will be checked. ${skipped} URLs will be skipped.\n\n` +
+                `Upgrade to Pro for unlimited URL checks.\n\n` +
+                `Continue with ${URL_LIMIT} URLs?`
+            );
+            
+            if (!confirmed) {
+                return;
+            }
+            
+            urls = limitedUrls;
+        }
+
+        openResultsTab(urls);
     }
 
-    async function getProSettings() {
-        return new Promise((resolve) => {
-            chrome.storage.sync.get(['isPro', 'proSettings'], function(result) {
-                if (result.isPro && result.proSettings) {
-                    resolve(result.proSettings);
-                } else {
-                    // Default settings for non-pro users
-                    resolve({
-                        userAgent: 'default',
-                        customHeaders: [],
-                        basicAuth: { enabled: false },
-                        checkCanonical: false,
-                        followRedirects: true,
-                        ignoreSSL: false
-                    });
-                }
-            });
-        });
-    }
-
-    function openResultsTab(urls, proSettings) {
-        // Store URLs and settings in chrome.storage
+    function openResultsTab(urls) {
+        // Store URLs and pro status in chrome.storage
         chrome.storage.local.set({ 
             urlsToCheck: urls,
-            proSettingsToUse: proSettings 
+            isPro: isPro
         }, function() {
             // Get the extension's URL
             const resultsUrl = chrome.runtime.getURL('frontend/results.html');
@@ -130,17 +179,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (settingsBtn) {
         settingsBtn.addEventListener('click', handleSettingsClick);
     }
-
-    // Check if user is pro and show indicator
-    chrome.storage.sync.get(['isPro'], function(result) {
-        if (result.isPro) {
-            // Add pro badge to settings button
-            const settingsBtn = document.getElementById('settingsBtn');
-            if (settingsBtn) {
-                settingsBtn.innerHTML = '<i class="fas fa-cog"></i> <span class="badge bg-warning text-dark" style="font-size: 0.6rem;">PRO</span>';
-            }
-        }
-    });
 });
 
 async function handleSettingsClick() {
@@ -158,4 +196,17 @@ async function handleSettingsClick() {
             url: chrome.runtime.getURL('frontend/upgrade.html') 
         });
     }
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type}`;
+    alertDiv.textContent = message;
+    
+    const container = document.querySelector('.card-body');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
 } 

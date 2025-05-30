@@ -1,19 +1,23 @@
 {
   "manifest_version": 3,
-  "name": "HTTP Status Peek Pro",
+  "name": "HTTP Status Peek",
   "version": "1.0.0",
-  "description": "Check HTTP status codes and redirects for URLs with Pro features",
+  "description": "Check HTTP status codes and redirects for URLs",
   "permissions": [
     "webRequest",
     "tabs",
     "storage",
-    "scripting",
-    "declarativeNetRequest",
-    "declarativeNetRequestWithHostAccess"
+    "identity"
   ],
   "host_permissions": [
     "<all_urls>"
   ],
+  "oauth2": {
+    "client_id": "YOUR_CLIENT_ID_HERE.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/spreadsheets"
+    ]
+  },
   "action": {
     "default_popup": "frontend/index.html",
     "default_icon": {

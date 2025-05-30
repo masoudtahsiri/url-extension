@@ -1,4 +1,4 @@
-// frontend/results.js - Updated for Pro features
+// frontend/results.js - Updated with Pro features (filtering, Google Sheets export)
 
 document.addEventListener('DOMContentLoaded', function() {
     const progressSection = document.getElementById('progressSection');
@@ -13,7 +13,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const urlSearch = document.getElementById('urlSearch');
     let allResults = []; // Store all results for filtering
     let selectedStatus = 'all';
-    let proSettings = null;
     let isPro = false;
     const tableContainer = document.querySelector('.table-responsive');
     let originalTableMinHeight = null;
@@ -47,10 +46,60 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function displayResults(results) {
         allResults = results; // Store all results
-        updateStatusFilter(results); // Update filter options based on results
-        updateTableHeaders(); // Update table headers for pro features
-        filterResults(); // Apply initial filter
+        
+        // Only show filtering for Pro users
+        if (isPro) {
+            // Show search box
+            const searchContainer = document.querySelector('.col-md-4');
+            if (searchContainer) searchContainer.style.display = 'block';
+            
+            // Show status filter
+            if (statusFilterIcon) statusFilterIcon.style.display = 'inline';
+            
+            updateStatusFilter(results); // Update filter options based on results
+        } else {
+            // Hide filtering for free users
+            const searchContainer = document.querySelector('.col-md-4');
+            if (searchContainer) searchContainer.style.display = 'none';
+            
+            // Hide status filter icon
+            if (statusFilterIcon) statusFilterIcon.style.display = 'none';
+        }
+        
+        filterResults(); // Apply initial filter (or show all for free)
         resultsSection.style.display = 'block';
+        
+        // Add export buttons
+        addExportButtons();
+    }
+
+    function addExportButtons() {
+        const existingContainer = document.getElementById('exportButtonsContainer');
+        if (existingContainer) existingContainer.remove();
+        
+        const container = document.createElement('div');
+        container.id = 'exportButtonsContainer';
+        container.style.marginTop = '1rem';
+        
+        // CSV button for all users
+        const csvBtn = document.createElement('a');
+        csvBtn.href = '#';
+        csvBtn.className = 'btn btn-primary me-2';
+        csvBtn.id = 'downloadButton';
+        csvBtn.innerHTML = '<i class="fas fa-download me-2"></i>Download CSV';
+        csvBtn.addEventListener('click', downloadCSV);
+        container.appendChild(csvBtn);
+        
+        // Google Sheets button for Pro users only
+        if (isPro) {
+            const sheetsBtn = document.createElement('button');
+            sheetsBtn.className = 'btn btn-success';
+            sheetsBtn.innerHTML = '<i class="fas fa-table me-2"></i>Export to Google Sheets';
+            sheetsBtn.addEventListener('click', exportToGoogleSheets);
+            container.appendChild(sheetsBtn);
+        }
+        
+        resultsSection.appendChild(container);
     }
 
     function updateTableHeaders() {
@@ -110,32 +159,35 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function filterResults() {
-        const searchTerm = urlSearch.value.toLowerCase();
+        const searchTerm = isPro && urlSearch ? urlSearch.value.toLowerCase() : '';
         const tbody = resultsTable.querySelector('tbody');
         tbody.innerHTML = '';
-        const filteredResults = allResults.filter(result => {
-            // Status code filter
-            let statusMatch = true;
-            if (selectedStatus !== 'all') {
-                statusMatch = false;
-                if (result.status === parseInt(selectedStatus)) {
-                    statusMatch = true;
-                }
-                if (result.redirect_chain) {
-                    statusMatch = result.redirect_chain.some(redirect => 
-                        redirect.status === parseInt(selectedStatus)
-                    );
-                }
-            }
-            // URL search filter
-            const urlMatch = searchTerm === '' || 
-                (result.source_url && result.source_url.toLowerCase().includes(searchTerm)) ||
-                (result.target_url && result.target_url.toLowerCase().includes(searchTerm));
-            return statusMatch && urlMatch;
-        });
         
-        const hasCanonical = allResults.some(r => r.canonical_url);
-        const hasUserAgent = allResults.some(r => r.user_agent && r.user_agent !== 'default');
+        let filteredResults = allResults;
+        
+        // Only apply filters for Pro users
+        if (isPro) {
+            filteredResults = allResults.filter(result => {
+                // Status code filter
+                let statusMatch = true;
+                if (selectedStatus !== 'all') {
+                    statusMatch = false;
+                    if (result.status === parseInt(selectedStatus)) {
+                        statusMatch = true;
+                    }
+                    if (result.redirect_chain) {
+                        statusMatch = result.redirect_chain.some(redirect => 
+                            redirect.status === parseInt(selectedStatus)
+                        );
+                    }
+                }
+                // URL search filter
+                const urlMatch = searchTerm === '' || 
+                    (result.source_url && result.source_url.toLowerCase().includes(searchTerm)) ||
+                    (result.target_url && result.target_url.toLowerCase().includes(searchTerm));
+                return statusMatch && urlMatch;
+            });
+        }
         
         filteredResults.forEach(result => {
             const row = tbody.insertRow();
@@ -144,36 +196,32 @@ document.addEventListener('DOMContentLoaded', function() {
             const cells = [
                 normalizeUrl(result.source_url || result.url || ''), // Using shared function
                 normalizeUrl(result.target_url || result.final_url || ''), // Using shared function
-                statusCodes.join(' → ')
+                statusCodes.join(' → '),
+                result.hasRedirect ? 'yes' : 'no'
             ];
             
             // Add canonical URL if pro and available
-            if (isPro && hasCanonical) {
-                if (result.canonical_url) {
-                    const canonicalCell = result.canonical_url;
-                    const matches = result.canonical_matches ? ' ✓' : ' ✗';
-                    cells.push(canonicalCell + matches);
-                } else {
-                    cells.push('-');
-                }
+            if (isPro && result.canonical_url) {
+                const canonicalCell = result.canonical_url;
+                const matches = result.canonical_matches ? ' ✓' : ' ✗';
+                cells.push(canonicalCell + matches);
+            } else {
+                cells.push('-');
             }
             
             // Add user agent if pro and available
-            if (isPro && hasUserAgent) {
-                cells.push(result.user_agent || 'default');
+            if (isPro && result.user_agent && result.user_agent !== 'default') {
+                cells.push(result.user_agent);
             }
-            
-            // Add has redirect
-            cells.push(result.hasRedirect ? 'yes' : 'no');
             
             cells.forEach((cellData, index) => {
                 const cell = row.insertCell();
-                if (isPro && hasCanonical && index === 3) {
-                    // Canonical URL cell - add color coding
-                    cell.innerHTML = cellData;
-                    if (cellData.includes('✓')) {
+                if (isPro && index === 3) {
+                    // Has Redirect cell - add color coding
+                    cell.textContent = cellData;
+                    if (cellData === 'yes') {
                         cell.style.color = '#00A878';
-                    } else if (cellData.includes('✗')) {
+                    } else {
                         cell.style.color = '#EF4444';
                     }
                 } else {
@@ -190,52 +238,166 @@ document.addEventListener('DOMContentLoaded', function() {
         return value;
     }
 
-    // Get URLs and settings from chrome.storage
-    chrome.storage.local.get(['urlsToCheck', 'proSettingsToUse'], function(result) {
+    function downloadCSV(e) {
+        e.preventDefault();
+        
+        const headers = ['Original URL', 'Final URL', 'Status Codes', 'Has Redirect'];
+        
+        const csvContent = [
+            headers.join(','),
+            ...allResults.map(result => {
+                const statusCodes = extractStatusCodes(result);
+                const row = [
+                    escapeCSV(normalizeUrl(result.source_url || result.url || '')),
+                    escapeCSV(normalizeUrl(result.target_url || result.final_url || '')),
+                    escapeCSV(statusCodes.join(' → ')),
+                    escapeCSV(result.hasRedirect ? 'yes' : 'no')
+                ];
+                return row.join(',');
+            })
+        ].join('\n');
+
+        // Create download link
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `url-check-results-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    async function exportToGoogleSheets() {
+        try {
+            // Get Google auth token
+            const token = await getGoogleAuthToken();
+            if (!token) {
+                showAlert('Please authenticate with Google to export to Sheets', 'warning');
+                return;
+            }
+            
+            // Create spreadsheet
+            const spreadsheetId = await createSpreadsheet(token);
+            
+            // Prepare data
+            const values = [
+                ['Original URL', 'Final URL', 'Status Codes', 'Has Redirect'],
+                ...allResults.map(result => {
+                    const statusCodes = extractStatusCodes(result);
+                    return [
+                        normalizeUrl(result.source_url || result.url || ''),
+                        normalizeUrl(result.target_url || result.final_url || ''),
+                        statusCodes.join(' → '),
+                        result.hasRedirect ? 'yes' : 'no'
+                    ];
+                })
+            ];
+            
+            // Update spreadsheet
+            await updateSpreadsheet(token, spreadsheetId, values);
+            
+            // Open spreadsheet
+            const spreadsheetUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
+            chrome.tabs.create({ url: spreadsheetUrl });
+            
+            // Update export count
+            chrome.storage.local.get(['sheetsExports'], function(result) {
+                const newTotal = (result.sheetsExports || 0) + 1;
+                chrome.storage.local.set({ sheetsExports: newTotal });
+            });
+            
+            showAlert('Successfully exported to Google Sheets!', 'success');
+        } catch (error) {
+            console.error('Error exporting to Google Sheets:', error);
+            showAlert('Failed to export to Google Sheets. Please try again.', 'danger');
+        }
+    }
+
+    async function getGoogleAuthToken() {
+        return new Promise((resolve) => {
+            chrome.identity.getAuthToken({ interactive: true }, (token) => {
+                if (chrome.runtime.lastError) {
+                    console.error(chrome.runtime.lastError);
+                    resolve(null);
+                } else {
+                    resolve(token);
+                }
+            });
+        });
+    }
+
+    async function createSpreadsheet(token) {
+        const response = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                properties: {
+                    title: `HTTP Status Check - ${new Date().toLocaleDateString()}`
+                },
+                sheets: [{
+                    properties: {
+                        title: 'Results'
+                    }
+                }]
+            })
+        });
+        
+        const data = await response.json();
+        return data.spreadsheetId;
+    }
+
+    async function updateSpreadsheet(token, spreadsheetId, values) {
+        const response = await fetch(
+            `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/A1:D${values.length}?valueInputOption=RAW`,
+            {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    values: values
+                })
+            }
+        );
+        
+        return response.json();
+    }
+
+    // Get URLs and pro status from chrome.storage
+    chrome.storage.local.get(['urlsToCheck', 'isPro'], function(result) {
         if (result.urlsToCheck && result.urlsToCheck.length > 0) {
             const urls = result.urlsToCheck;
-            proSettings = result.proSettingsToUse || {};
+            isPro = result.isPro || false;
             
-            // Check if user is pro
-            chrome.storage.sync.get(['isPro'], function(syncResult) {
-                isPro = syncResult.isPro || false;
-                
-                // Show pro indicator if applicable
-                if (isPro) {
-                    const header = document.querySelector('.card-header h2');
-                    if (header) {
-                        header.innerHTML += ' <span class="badge bg-warning text-dark ms-2" style="font-size: 0.7rem;">PRO</span>';
-                    }
+            // Show pro indicator if applicable
+            if (isPro) {
+                const header = document.querySelector('.card-header h2');
+                if (header) {
+                    header.innerHTML += ' <span class="badge bg-warning text-dark ms-2" style="font-size: 0.7rem;">PRO</span>';
                 }
-                
-                processUrls(urls);
-            });
+            }
+            
+            processUrls(urls);
         } else {
             showAlert('No URLs to check', 'warning');
         }
     });
 
     async function processUrls(urls) {
-        // Deduplicate normalized URLs
-        const seen = new Set();
-        const uniqueUrls = urls.filter(url => {
-            const norm = normalizeUrl(url);
-            if (seen.has(norm)) return false;
-            seen.add(norm);
-            return true;
-        });
-        updateProgress(0, uniqueUrls.length);
+        updateProgress(0, urls.length);
         
         try {
-            // Process URLs one by one
             const results = [];
-            for (let i = 0; i < uniqueUrls.length; i++) {
-                const url = uniqueUrls[i];
+            for (let i = 0; i < urls.length; i++) {
+                const url = urls[i];
                 try {
                     const response = await chrome.runtime.sendMessage({
                         action: 'checkUrl',
-                        url: url,
-                        proSettings: proSettings
+                        url: url
                     });
                     if (response && response.status === 'success') {
                         results.push(response.data);
@@ -244,69 +406,27 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.error(`Error checking URL ${url}:`, error);
                 }
                 
-                updateProgress(i + 1, uniqueUrls.length);
+                updateProgress(i + 1, urls.length);
             }
 
             displayResults(results);
-            createDownloadLink(results);
-            showAlert(`${uniqueUrls.length} URLs processed successfully!`, 'success');
+            showAlert(`${urls.length} URLs processed successfully!`, 'success');
+            
+            // Update statistics for Pro users
+            if (isPro) {
+                chrome.storage.local.get(['totalChecks'], function(result) {
+                    const newTotal = (result.totalChecks || 0) + urls.length;
+                    chrome.storage.local.set({ totalChecks: newTotal });
+                });
+            }
         } catch (error) {
             console.error('Error:', error);
             showAlert('An error occurred while processing URLs', 'danger');
         }
     }
 
-    function createDownloadLink(results) {
-        // Create CSV content with pro features
-        const headers = ['Original URL', 'Final URL', 'Status Codes'];
-        
-        if (isPro && results.some(r => r.canonical_url)) {
-            headers.push('Canonical URL', 'Canonical Matches');
-        }
-        
-        if (isPro && results.some(r => r.user_agent && r.user_agent !== 'default')) {
-            headers.push('User Agent');
-        }
-        
-        headers.push('Has Redirect');
-        
-        const csvContent = [
-            headers.join(','),
-            ...results.map(result => {
-                const statusCodes = extractStatusCodes(result);
-                const row = [
-                    escapeCSV(normalizeUrl(result.source_url || result.url || '')),
-                    escapeCSV(normalizeUrl(result.target_url || result.final_url || '')),
-                    escapeCSV(statusCodes.join(' → '))
-                ];
-                
-                if (isPro && results.some(r => r.canonical_url)) {
-                    row.push(
-                        escapeCSV(result.canonical_url || ''),
-                        escapeCSV(result.canonical_matches ? 'yes' : 'no')
-                    );
-                }
-                
-                if (isPro && results.some(r => r.user_agent && r.user_agent !== 'default')) {
-                    row.push(escapeCSV(result.user_agent || 'default'));
-                }
-                
-                row.push(escapeCSV(result.hasRedirect ? 'yes' : 'no'));
-                
-                return row.join(',');
-            })
-        ].join('\n');
-
-        // Create download link
-        const blob = new Blob([csvContent], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        downloadButton.href = url;
-        downloadButton.download = `url-check-results-${new Date().toISOString().slice(0, 10)}.csv`;
-        downloadButton.style.display = 'block';
-    }
-
-    // Excel-style dropdown logic
-    if (statusFilterIcon && statusFilterDropdown) {
+    // Excel-style dropdown logic (Pro only)
+    if (isPro && statusFilterIcon && statusFilterDropdown) {
         statusFilterIcon.addEventListener('click', function(e) {
             e.stopPropagation();
             // Position dropdown below the icon, relative to the parent th
@@ -319,25 +439,6 @@ document.addEventListener('DOMContentLoaded', function() {
             statusFilterDropdown.style.minWidth = '140px';
             // Rebuild dropdown to ensure highlight is correct
             updateStatusFilter(allResults);
-            // Dynamically expand table height if needed
-            setTimeout(() => {
-                if (tableContainer) {
-                    // Save original minHeight
-                    if (originalTableMinHeight === null) {
-                        originalTableMinHeight = tableContainer.style.minHeight;
-                    }
-                    // Calculate space below icon to bottom of table container
-                    const iconRect = statusFilterIcon.getBoundingClientRect();
-                    const tableRect = tableContainer.getBoundingClientRect();
-                    const dropdownHeight = statusFilterDropdown.offsetHeight;
-                    const spaceBelowIcon = tableRect.bottom - iconRect.bottom;
-                    if (dropdownHeight > spaceBelowIcon) {
-                        // Increase table minHeight so dropdown fits
-                        const needed = dropdownHeight - spaceBelowIcon + tableContainer.offsetHeight;
-                        tableContainer.style.minHeight = needed + 'px';
-                    }
-                }
-            }, 0);
         });
         // Handle selection
         statusFilterDropdown.addEventListener('click', function(e) {
@@ -347,21 +448,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 statusFilterDropdown.style.display = 'none';
                 updateStatusFilter(allResults); // update highlight
                 filterResults();
-                // Reset table min-height
-                if (tableContainer && originalTableMinHeight !== null) tableContainer.style.minHeight = originalTableMinHeight;
             }
         });
         // Hide dropdown on outside click
         document.addEventListener('click', function(e) {
             if (!statusFilterDropdown.contains(e.target) && e.target !== statusFilterIcon) {
                 statusFilterDropdown.style.display = 'none';
-                // Reset table min-height
-                if (tableContainer && originalTableMinHeight !== null) tableContainer.style.minHeight = originalTableMinHeight;
             }
         });
     }
 
-    if (urlSearch) {
+    if (isPro && urlSearch) {
         urlSearch.addEventListener('input', filterResults);
     }
 });

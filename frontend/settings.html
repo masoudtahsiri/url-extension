@@ -80,73 +80,86 @@
             padding: 1.5rem;
         }
 
-        .form-label {
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-            color: var(--text-color);
-        }
-
-        .form-control, .form-select {
-            border: 2px solid var(--border-color);
-            border-radius: 0.5rem;
-            padding: 0.75rem;
-            font-size: 1rem;
-            transition: all 0.2s;
-        }
-
-        .form-control:focus, .form-select:focus {
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(0, 168, 120, 0.1);
-        }
-
-        .form-range {
-            margin-top: 0.5rem;
-        }
-
-        .range-value {
-            display: inline-block;
-            min-width: 50px;
-            text-align: center;
-            font-weight: 600;
-            color: var(--primary-color);
-        }
-
-        .custom-header-item {
+        .google-status {
             display: flex;
-            gap: 0.5rem;
-            margin-bottom: 0.5rem;
             align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            background: #F8FAFC;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
         }
 
-        .custom-header-item input {
-            flex: 1;
+        .google-status i {
+            font-size: 2rem;
         }
 
-        .btn-icon {
-            padding: 0.5rem;
-            line-height: 1;
-            border-radius: 0.25rem;
+        .google-status.connected i {
+            color: var(--success-color);
         }
 
-        .btn-save {
-            background: var(--primary-color);
+        .google-status.disconnected i {
+            color: #64748B;
+        }
+
+        .btn-google {
+            background: #4285F4;
             color: white;
             border: none;
-            padding: 0.75rem 2rem;
+            padding: 0.75rem 1.5rem;
             font-weight: 600;
             border-radius: 0.5rem;
             transition: all 0.2s;
         }
 
-        .btn-save:hover {
-            background: var(--primary-hover);
+        .btn-google:hover {
+            background: #357AE8;
             transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(0, 168, 120, 0.2);
+            box-shadow: 0 4px 8px rgba(66, 133, 244, 0.2);
+            color: white;
         }
 
-        .form-check-input:checked {
-            background-color: var(--primary-color);
-            border-color: var(--primary-color);
+        .btn-disconnect {
+            background: #EF4444;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            border-radius: 0.5rem;
+            transition: all 0.2s;
+        }
+
+        .btn-disconnect:hover {
+            background: #DC2626;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(239, 68, 68, 0.2);
+            color: white;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .stat-card {
+            background: #F8FAFC;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            color: #64748B;
+            font-size: 0.9rem;
         }
 
         .alert {
@@ -171,117 +184,56 @@
 
         <div id="alertContainer"></div>
 
-        <!-- User Agent Settings -->
+        <!-- Google Sheets Integration -->
         <div class="settings-card">
             <div class="settings-card-header">
-                <h3><i class="fas fa-robot me-2"></i>User Agent</h3>
+                <h3><i class="fas fa-table me-2"></i>Google Sheets Integration</h3>
             </div>
             <div class="settings-card-body">
-                <div class="mb-3">
-                    <label for="userAgent" class="form-label">Select User Agent</label>
-                    <select class="form-select" id="userAgent">
-                        <option value="default">Default (Chrome)</option>
-                        <option value="googlebot">Googlebot</option>
-                        <option value="googlebot-mobile">Googlebot Mobile</option>
-                        <option value="bingbot">Bingbot</option>
-                        <option value="facebookbot">Facebook Crawler</option>
-                        <option value="twitterbot">Twitter Bot</option>
-                        <option value="linkedinbot">LinkedIn Bot</option>
-                        <option value="iphone">iPhone Safari</option>
-                        <option value="android">Android Chrome</option>
-                        <option value="custom">Custom User Agent</option>
-                    </select>
+                <div id="googleStatus" class="google-status disconnected">
+                    <i class="fab fa-google"></i>
+                    <div>
+                        <h5 class="mb-1">Google Account</h5>
+                        <p class="mb-0 text-muted" id="googleEmail">Not connected</p>
+                    </div>
                 </div>
-                <div class="mb-3" id="customUserAgentGroup" style="display: none;">
-                    <label for="customUserAgent" class="form-label">Custom User Agent String</label>
-                    <input type="text" class="form-control" id="customUserAgent" 
-                           placeholder="Mozilla/5.0 (compatible; YourBot/1.0)">
-                </div>
-            </div>
-        </div>
-
-        <!-- Custom Headers -->
-        <div class="settings-card">
-            <div class="settings-card-header">
-                <h3><i class="fas fa-code me-2"></i>Custom Headers</h3>
-            </div>
-            <div class="settings-card-body">
-                <div id="customHeaders">
-                    <!-- Headers will be added here dynamically -->
-                </div>
-                <button type="button" class="btn btn-sm btn-outline-primary" id="addHeaderBtn">
-                    <i class="fas fa-plus me-1"></i>Add Header
+                
+                <button type="button" class="btn btn-google" id="connectGoogleBtn">
+                    <i class="fab fa-google me-2"></i>Connect Google Account
                 </button>
+                <button type="button" class="btn btn-disconnect" id="disconnectGoogleBtn" style="display: none;">
+                    <i class="fas fa-unlink me-2"></i>Disconnect
+                </button>
+                
                 <div class="mt-3">
                     <small class="text-muted">
-                        Examples: Authorization: Bearer TOKEN, Cookie: session=abc123
+                        Connect your Google account to export results directly to Google Sheets.
                     </small>
                 </div>
             </div>
         </div>
 
-        <!-- Basic Authentication -->
+        <!-- Usage Statistics -->
         <div class="settings-card">
             <div class="settings-card-header">
-                <h3><i class="fas fa-key me-2"></i>Basic Authentication</h3>
+                <h3><i class="fas fa-chart-bar me-2"></i>Usage Statistics</h3>
             </div>
             <div class="settings-card-body">
-                <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" id="basicAuthEnabled">
-                    <label class="form-check-label" for="basicAuthEnabled">
-                        Enable Basic Authentication
-                    </label>
-                </div>
-                <div id="basicAuthFields" style="display: none;">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="basicAuthUsername" class="form-label">Username</label>
-                            <input type="text" class="form-control" id="basicAuthUsername">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="basicAuthPassword" class="form-label">Password</label>
-                            <input type="password" class="form-control" id="basicAuthPassword">
-                        </div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalChecks">0</div>
+                        <div class="stat-label">Total URLs Checked</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="sheetsExports">0</div>
+                        <div class="stat-label">Sheets Exports</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">∞</div>
+                        <div class="stat-label">URL Limit</div>
                     </div>
                 </div>
             </div>
-        </div>
-
-        <!-- Additional Features -->
-        <div class="settings-card">
-            <div class="settings-card-header">
-                <h3><i class="fas fa-globe me-2"></i>Additional Features</h3>
-            </div>
-            <div class="settings-card-body">
-                <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" id="checkCanonical">
-                    <label class="form-check-label" for="checkCanonical">
-                        Check Canonical URLs
-                    </label>
-                    <small class="d-block text-muted">Extract and verify canonical link tags from pages</small>
-                </div>
-                <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" id="followRedirects" checked>
-                    <label class="form-check-label" for="followRedirects">
-                        Follow Redirects
-                    </label>
-                    <small class="d-block text-muted">Track complete redirect chains</small>
-                </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="ignoreSSL">
-                    <label class="form-check-label" for="ignoreSSL">
-                        Ignore SSL Errors
-                    </label>
-                    <small class="d-block text-muted">Continue checking even with SSL certificate issues</small>
-                </div>
-            </div>
-        </div>
-
-        <!-- Save Button -->
-        <div class="text-center">
-            <button type="button" class="btn btn-save" id="saveBtn">
-                <i class="fas fa-save me-2"></i>Save Settings
-            </button>
         </div>
 
         <div class="footer">

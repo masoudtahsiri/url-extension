@@ -7,30 +7,7 @@
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('HTTP Status Peek Extension installed');
-  // Clear any existing rules (only for Pro features)
-  chrome.declarativeNetRequest.getDynamicRules((rules) => {
-    const ruleIds = rules.map(rule => rule.id);
-    if (ruleIds.length > 0) {
-      chrome.declarativeNetRequest.updateDynamicRules({
-        removeRuleIds: ruleIds
-      });
-    }
-  });
 });
-
-// User agent strings mapping (Pro feature)
-const USER_AGENTS = {
-    default: '',
-    googlebot: 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
-    'googlebot-mobile': 'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/W.X.Y.Z Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
-    bingbot: 'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)',
-    facebookbot: 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
-    twitterbot: 'Twitterbot/1.0',
-    linkedinbot: 'LinkedInBot/1.0 (compatible; Mozilla/5.0; Apache-HttpClient +http://www.linkedin.com)',
-    iphone: 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1',
-    android: 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.91 Mobile Safari/537.36',
-    custom: ''
-};
 
 // =================================================================
 // REQUEST TRACKING
@@ -38,9 +15,6 @@ const USER_AGENTS = {
 
 // Store for tracking requests by tabId
 const requestTracking = new Map();
-
-// Store for active tabs created by the extension (Pro feature)
-const activeTabs = new Map();
 
 // Enhanced logging function
 function logRequest(type, details, extra = {}) {
@@ -63,156 +37,9 @@ setInterval(() => {
     // Remove tracking data older than 5 minutes
     if (data.timestamp && now - data.timestamp > 300000) {
       requestTracking.delete(tabId);
-      // Clean up any Pro rules for this tab
-      if (activeTabs.has(tabId)) {
-        cleanupTabRules(tabId);
-      }
     }
   }
 }, 60000); // Run every minute
-
-// =================================================================
-// PRO FEATURES - DECLARATIVE NET REQUEST HANDLING
-// =================================================================
-
-async function setupHeaderRulesForTab(tabId, url, proSettings) {
-  const rules = [];
-  const removeRuleIds = [];
-  
-  // Get existing rules for this tab
-  const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
-  existingRules.forEach(rule => {
-    if (rule.id >= tabId * 1000 && rule.id < (tabId + 1) * 1000) {
-      removeRuleIds.push(rule.id);
-    }
-  });
-
-  // Base rule ID for this tab
-  const baseRuleId = tabId * 1000;
-  let ruleOffset = 0;
-
-  // Parse URL to get domain
-  let urlPattern;
-  try {
-    const urlObj = new URL(url);
-    urlPattern = `*://${urlObj.hostname}/*`;
-  } catch (e) {
-    urlPattern = url;
-  }
-
-  // Rule for User Agent
-  if (proSettings.userAgent && proSettings.userAgent !== 'default') {
-    const uaString = proSettings.userAgent === 'custom' 
-      ? proSettings.customUserAgent 
-      : USER_AGENTS[proSettings.userAgent];
-    
-    if (uaString) {
-      rules.push({
-        id: baseRuleId + ruleOffset++,
-        priority: 1,
-        condition: {
-          urlFilter: urlPattern,
-          resourceTypes: ["main_frame", "sub_frame", "xmlhttprequest"],
-          tabIds: [tabId]
-        },
-        action: {
-          type: "modifyHeaders",
-          requestHeaders: [{
-            header: "User-Agent",
-            operation: "set",
-            value: uaString
-          }]
-        }
-      });
-    }
-  }
-
-  // Rules for Custom Headers
-  if (proSettings.customHeaders && proSettings.customHeaders.length > 0) {
-    const requestHeaders = proSettings.customHeaders.map(header => ({
-      header: header.name,
-      operation: "set",
-      value: header.value
-    }));
-
-    rules.push({
-      id: baseRuleId + ruleOffset++,
-      priority: 1,
-      condition: {
-        urlFilter: urlPattern,
-        resourceTypes: ["main_frame", "sub_frame", "xmlhttprequest"],
-        tabIds: [tabId]
-      },
-      action: {
-        type: "modifyHeaders",
-        requestHeaders: requestHeaders
-      }
-    });
-  }
-
-  // Rule for Basic Auth
-  if (proSettings.basicAuth && proSettings.basicAuth.enabled) {
-    const authString = btoa(`${proSettings.basicAuth.username}:${proSettings.basicAuth.password}`);
-    rules.push({
-      id: baseRuleId + ruleOffset++,
-      priority: 1,
-      condition: {
-        urlFilter: urlPattern,
-        resourceTypes: ["main_frame", "sub_frame", "xmlhttprequest"],
-        tabIds: [tabId]
-      },
-      action: {
-        type: "modifyHeaders",
-        requestHeaders: [{
-          header: "Authorization",
-          operation: "set",
-          value: `Basic ${authString}`
-        }]
-      }
-    });
-  }
-
-  // Update rules
-  if (rules.length > 0 || removeRuleIds.length > 0) {
-    await chrome.declarativeNetRequest.updateDynamicRules({
-      removeRuleIds: removeRuleIds,
-      addRules: rules
-    });
-  }
-}
-
-async function cleanupTabRules(tabId) {
-  const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
-  const removeRuleIds = existingRules
-    .filter(rule => rule.id >= tabId * 1000 && rule.id < (tabId + 1) * 1000)
-    .map(rule => rule.id);
-  
-  if (removeRuleIds.length > 0) {
-    await chrome.declarativeNetRequest.updateDynamicRules({
-      removeRuleIds: removeRuleIds
-    });
-  }
-}
-
-// Extract canonical URL from page (Pro feature)
-async function extractCanonicalUrl(tabId) {
-  return new Promise((resolve) => {
-    chrome.scripting.executeScript({
-      target: { tabId: tabId },
-      function: () => {
-        const canonical = document.querySelector('link[rel="canonical"]');
-        return canonical ? canonical.href : null;
-      }
-    }, (results) => {
-      if (chrome.runtime.lastError) {
-        console.error('Error extracting canonical:', chrome.runtime.lastError);
-        resolve(null);
-      } else {
-        resolve(results && results[0] && results[0].result ? results[0].result : null);
-      }
-    });
-  });
-}
 
 // =================================================================
 // MESSAGE HANDLING
@@ -223,14 +50,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'checkUrl') {
     console.log('=== STARTING URL CHECK ===');
     console.log('Target URL:', request.url);
-    
-    // Handle both with and without Pro settings
-    const proSettings = request.proSettings || null;
-    if (proSettings) {
-      console.log('Pro Settings:', proSettings);
-    }
-    
-    checkUrl(request.url, proSettings)
+    checkUrl(request.url)
       .then(result => {
         console.log('=== FINAL RESULT ===');
         console.log(JSON.stringify(result, null, 2));
@@ -453,20 +273,12 @@ chrome.webRequest.onErrorOccurred.addListener(
   { urls: ["<all_urls>"] }
 );
 
-// Clean up when tab is closed (Pro feature)
-chrome.tabs.onRemoved.addListener((tabId) => {
-  if (activeTabs.has(tabId)) {
-    activeTabs.delete(tabId);
-    cleanupTabRules(tabId);
-  }
-});
-
 // =================================================================
 // URL CHECKING LOGIC
 // =================================================================
 
-// Main function to check URL - now supports optional Pro features
-async function checkUrl(url, proSettings = null) {
+// Main function to check URL
+async function checkUrl(url) {
   // Clean any whitespace/newline characters
   url = url.trim();
   const originalUrl = url;
@@ -478,7 +290,7 @@ async function checkUrl(url, proSettings = null) {
 
   console.log('Normalized URL:', url);
 
-  return new Promise(async (resolve, reject) => {
+  return new Promise((resolve, reject) => {
     let tabId = null;
     let isComplete = false;
     const startTime = Date.now(); // Track when we start
@@ -488,18 +300,9 @@ async function checkUrl(url, proSettings = null) {
       url: url, 
       active: false,
       pinned: true
-    }, async (tab) => {
+    }, (tab) => {
       tabId = tab.id;
       console.log('Created tab with ID:', tabId);
-      
-      // Only use Pro features if proSettings is provided
-      if (proSettings && Object.keys(proSettings).length > 0) {
-        // Add to active tabs for Pro tracking
-        activeTabs.set(tabId, { url, proSettings });
-        
-        // Set up header rules for this tab
-        await setupHeaderRulesForTab(tabId, url, proSettings);
-      }
       
       // Initialize tracking for this tab
       requestTracking.delete(tabId); // Clear any old data first
@@ -511,18 +314,13 @@ async function checkUrl(url, proSettings = null) {
         allResponses: []
       });
 
-      // Only reload if Pro features are active
-      if (proSettings && Object.keys(proSettings).length > 0) {
-        chrome.tabs.reload(tabId, { bypassCache: true });
-      }
-
       // Set a timeout
       const timeout = setTimeout(() => {
         console.log('TIMEOUT: Request took too long');
         cleanup();
         const tracking = requestTracking.get(tabId) || {};
         console.log('Tracking data at timeout:', tracking);
-        const result = buildResult(originalUrl, url, tracking, proSettings);
+        const result = buildResult(originalUrl, url, tracking);
         resolve(result);
       }, 15000); // 15 second timeout
 
@@ -530,11 +328,6 @@ async function checkUrl(url, proSettings = null) {
         isComplete = true;
         clearTimeout(timeout);
         if (tabId) {
-          // Clean up Pro features if they were used
-          if (activeTabs.has(tabId)) {
-            activeTabs.delete(tabId);
-            cleanupTabRules(tabId);
-          }
           chrome.tabs.remove(tabId).catch(() => {});
           // Clean up tracking after a delay
           setTimeout(() => {
@@ -552,13 +345,13 @@ async function checkUrl(url, proSettings = null) {
           return;
         }
 
-        chrome.tabs.get(tabId, async (tab) => {
+        chrome.tabs.get(tabId, (tab) => {
           if (chrome.runtime.lastError || !tab) {
             console.log('Tab error or not found');
             clearInterval(checkInterval);
             cleanup();
             const tracking = requestTracking.get(tabId) || {};
-            const result = buildResult(originalUrl, url, tracking, proSettings);
+            const result = buildResult(originalUrl, url, tracking);
             resolve(result);
             return;
           }
@@ -580,25 +373,9 @@ async function checkUrl(url, proSettings = null) {
             console.log('Tab loading complete with tracking data');
             clearInterval(checkInterval);
             
-            // Check for canonical URL if Pro settings enabled it
-            let canonicalUrl = null;
-            if (proSettings && proSettings.checkCanonical) {
-              try {
-                canonicalUrl = await extractCanonicalUrl(tabId);
-                console.log('Canonical URL:', canonicalUrl);
-              } catch (error) {
-                console.error('Error extracting canonical:', error);
-              }
-            }
-            
             // Wait a bit for any final webRequest events
             setTimeout(() => {
               tracking.finalUrl = tracking.finalUrl || tab.url;
-              
-              // Only add canonical if Pro feature was used
-              if (canonicalUrl) {
-                tracking.canonicalUrl = canonicalUrl;
-              }
               
               console.log('=== FINAL TRACKING DATA ===');
               console.log('Requests:', tracking.requests);
@@ -606,12 +383,9 @@ async function checkUrl(url, proSettings = null) {
               console.log('All Responses:', tracking.allResponses);
               console.log('Final URL:', tracking.finalUrl);
               console.log('Final Status:', tracking.finalStatus);
-              if (canonicalUrl) {
-                console.log('Canonical URL:', tracking.canonicalUrl);
-              }
               
               cleanup();
-              const result = buildResult(originalUrl, url, tracking, proSettings);
+              const result = buildResult(originalUrl, url, tracking);
               resolve(result);
             }, 2000); // Increased wait time to 2000ms
           }
@@ -626,7 +400,7 @@ async function checkUrl(url, proSettings = null) {
 // =================================================================
 
 // Build the result from tracking data
-function buildResult(originalUrl, startUrl, tracking, proSettings = null) {
+function buildResult(originalUrl, startUrl, tracking) {
   console.log('=== BUILDING RESULT ===');
   console.log('Original URL:', originalUrl);
   console.log('Start URL:', startUrl);
@@ -689,20 +463,6 @@ function buildResult(originalUrl, startUrl, tracking, proSettings = null) {
     // Determine if URL is safe based on final status
     const finalStatus = tracking.finalStatus || result.status;
     result.isSafe = finalStatus >= 200 && finalStatus < 400;
-  }
-
-  // Only add Pro features to result if they were used
-  if (proSettings) {
-    // Add canonical URL if available
-    if (tracking.canonicalUrl) {
-      result.canonical_url = tracking.canonicalUrl;
-      result.canonical_matches = tracking.canonicalUrl === finalUrl;
-    }
-
-    // Add user agent info if not default
-    if (proSettings.userAgent && proSettings.userAgent !== 'default') {
-      result.user_agent = proSettings.userAgent;
-    }
   }
 
   console.log('Built result:', result);
