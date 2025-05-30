@@ -15,21 +15,67 @@ const USER_AGENTS = {
 };
 
 document.addEventListener('DOMContentLoaded', function() {
+    let isPro = false;
+    
     // Check if user is pro
     chrome.storage.sync.get(['isPro'], function(result) {
-        if (!result.isPro) {
-            window.location.href = chrome.runtime.getURL('frontend/upgrade.html');
-            return;
+        isPro = result.isPro || false;
+        
+        if (!isPro) {
+            // Show overlay for non-pro users
+            document.getElementById('googleSheetsCard').classList.add('locked');
+            
+            // Update header to show free version
+            const header = document.querySelector('.settings-header .badge');
+            if (header) {
+                header.textContent = 'FREE VERSION';
+                header.style.background = 'rgba(255, 255, 255, 0.2)';
+            }
         }
+        
+        // Load settings and stats regardless of pro status
+        if (isPro) {
+            loadGoogleStatus();
+        }
+        loadStats();
     });
-
-    // Load settings and stats
-    loadGoogleStatus();
-    loadStats();
 
     // Event listeners
     document.getElementById('connectGoogleBtn').addEventListener('click', connectGoogle);
     document.getElementById('disconnectGoogleBtn').addEventListener('click', disconnectGoogle);
+    
+    // Upgrade button in overlay
+    const upgradeOverlayBtn = document.getElementById('upgradeOverlayBtn');
+    if (upgradeOverlayBtn) {
+        upgradeOverlayBtn.addEventListener('click', function() {
+            // Simulate purchase for testing (same as upgradeBtn)
+            const btn = this;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
+            setTimeout(() => {
+                // Simulate successful purchase
+                chrome.storage.sync.set({ isPro: true }, function() {
+                    chrome.storage.local.set({ 
+                        totalChecks: 0,
+                        sheetsExports: 0
+                    }, function() {
+                        window.location.reload();
+                    });
+                });
+            }, 1000);
+        });
+    }
+
+    // Add click handler for statUpgradeLink
+    const statUpgradeLink = document.getElementById('statUpgradeLink');
+    if (statUpgradeLink) {
+        statUpgradeLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            chrome.tabs.create({
+                url: chrome.runtime.getURL('frontend/upgrade.html')
+            });
+        });
+    }
 });
 
 function loadGoogleStatus() {
@@ -107,6 +153,14 @@ function loadStats() {
     chrome.storage.local.get(['totalChecks', 'sheetsExports'], function(result) {
         document.getElementById('totalChecks').textContent = result.totalChecks || 0;
         document.getElementById('sheetsExports').textContent = result.sheetsExports || 0;
+    });
+    
+    // Check if pro to update URL limit display
+    chrome.storage.sync.get(['isPro'], function(result) {
+        const urlLimitElement = document.getElementById('urlLimit');
+        if (urlLimitElement && !result.isPro) {
+            urlLimitElement.textContent = '100';
+        }
     });
 }
 

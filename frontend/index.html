@@ -115,6 +115,20 @@
             box-shadow: 0 6px 8px -1px rgba(4, 106, 56, 0.3);
         }
 
+        .btn-warning {
+            background: #F59E0B;
+            border: none;
+            box-shadow: 0 4px 6px -1px rgba(245, 158, 11, 0.2);
+            color: #FFFFFF;
+            width: 100%;
+        }
+
+        .btn-warning:hover {
+            background: #D97706;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 8px -1px rgba(217, 119, 6, 0.3);
+        }
+
         .progress {
             height: 0.75rem;
             border-radius: 1rem;
@@ -360,6 +374,10 @@
 
                     <button type="submit" class="btn btn-primary" id="submitBtn">
                         <i class="fas fa-search me-2"></i>Check URLs
+                    </button>
+
+                    <button type="button" class="btn btn-warning mt-2" id="upgradeBtn" style="display: none;">
+                        <i class="fas fa-crown me-2"></i>Upgrade to Pro
                     </button>
                 </form>
 

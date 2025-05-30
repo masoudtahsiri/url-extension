@@ -18,12 +18,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function updateUI() {
         const settingsBtn = document.getElementById('settingsBtn');
+        const upgradeBtn = document.getElementById('upgradeBtn');
+        
         if (settingsBtn) {
             if (isPro) {
                 settingsBtn.innerHTML = '<i class="fas fa-cog"></i> <span class="badge bg-warning text-dark" style="font-size: 0.6rem;">PRO</span>';
             } else {
                 settingsBtn.innerHTML = '<i class="fas fa-cog"></i>';
             }
+        }
+        
+        // Show upgrade button for non-pro users
+        if (upgradeBtn) {
+            upgradeBtn.style.display = isPro ? 'none' : 'block';
         }
     }
 
@@ -179,23 +186,26 @@ document.addEventListener('DOMContentLoaded', function() {
     if (settingsBtn) {
         settingsBtn.addEventListener('click', handleSettingsClick);
     }
+
+    // Add upgrade button handler
+    const upgradeBtn = document.getElementById('upgradeBtn');
+    if (upgradeBtn) {
+        upgradeBtn.addEventListener('click', handleUpgradeClick);
+    }
 });
 
 async function handleSettingsClick() {
-    // Check if user has Pro
-    const { isPro } = await chrome.storage.sync.get('isPro');
-    
-    if (isPro) {
-        // Open settings page
-        chrome.tabs.create({ 
-            url: chrome.runtime.getURL('frontend/settings.html') 
-        });
-    } else {
-        // Open upgrade page
-        chrome.tabs.create({ 
-            url: chrome.runtime.getURL('frontend/upgrade.html') 
-        });
-    }
+    // Always open settings page
+    chrome.tabs.create({ 
+        url: chrome.runtime.getURL('frontend/settings.html') 
+    });
+}
+
+function handleUpgradeClick() {
+    // Open upgrade page
+    chrome.tabs.create({ 
+        url: chrome.runtime.getURL('frontend/upgrade.html') 
+    });
 }
 
 function showAlert(message, type) {

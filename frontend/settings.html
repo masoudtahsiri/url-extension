@@ -51,8 +51,10 @@
 
         .settings-header .badge {
             background: rgba(255, 255, 255, 0.2);
-            font-size: 0.9rem;
-            padding: 0.5rem 1rem;
+            font-size: 0.8rem;
+            /* padding: 0.5rem 1rem; */
+            margin-top: 0.75rem;
+            display: inline-block;
         }
 
         .settings-card {
@@ -173,19 +175,88 @@
             margin-top: 3rem;
             opacity: 0.8;
         }
+
+        /* Pro overlay styles */
+        .pro-overlay {
+            position: relative;
+        }
+
+        .pro-overlay-content {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            border-radius: 0 0 1rem 1rem;
+            backdrop-filter: blur(5px);
+            display: none;
+        }
+
+        .pro-overlay.locked .pro-overlay-content {
+            display: flex;
+        }
+
+        .pro-overlay.locked .settings-card-body {
+            filter: blur(3px);
+            pointer-events: none;
+        }
+
+        .pro-overlay-content h4 {
+            color: var(--text-color);
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+
+        .pro-overlay-content p {
+            color: #64748B;
+            margin-bottom: 1.5rem;
+            text-align: center;
+            max-width: 300px;
+        }
+
+        .btn-unlock {
+            background: var(--warning-color);
+            color: white;
+            border: none;
+            padding: 0.75rem 2rem;
+            font-weight: 600;
+            border-radius: 0.5rem;
+            transition: all 0.2s;
+        }
+
+        .btn-unlock:hover {
+            background: #D97706;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(245, 158, 11, 0.2);
+            color: white;
+        }
+
+        .upgrade-price {
+            font-size: 0.8rem;
+            color: #a3a3a3;
+            text-align: center;
+            font-weight: 500;
+            margin-top: 0.5rem;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="settings-header">
-            <h1><i class="fas fa-cog me-2"></i>HTTP Status Peek Settings</h1>
+            <h1><i class="fas fa-cog me-2"></i>Settings</h1>
             <span class="badge">PRO VERSION</span>
         </div>
 
         <div id="alertContainer"></div>
 
         <!-- Google Sheets Integration -->
-        <div class="settings-card">
+        <div class="settings-card pro-overlay" id="googleSheetsCard">
             <div class="settings-card-header">
                 <h3><i class="fas fa-table me-2"></i>Google Sheets Integration</h3>
             </div>
@@ -211,6 +282,15 @@
                     </small>
                 </div>
             </div>
+            <div class="pro-overlay-content">
+                <i class="fas fa-crown" style="font-size: 3rem; color: #F59E0B; margin-bottom: 1rem;"></i>
+                <h4>Google Sheets Export</h4>
+                <p>Export your results directly to Google Sheets with one click. Perfect for sharing reports and online access!</p>
+                <button type="button" class="btn btn-unlock" id="upgradeOverlayBtn">
+                    <i class="fas fa-crown me-2"></i>Upgrade to Pro
+                </button>
+                <div class="upgrade-price mt-2">$9.99 lifetime access</div>
+            </div>
         </div>
 
         <!-- Usage Statistics -->
@@ -229,8 +309,9 @@
                         <div class="stat-label">Sheets Exports</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value">∞</div>
+                        <div class="stat-value" id="urlLimit">100</div>
                         <div class="stat-label">URL Limit</div>
+                        <small class="text-muted" style="display:block; margin-top:0.25rem; font-size:0.7rem;">For unlimited access,<br><a href="#" id="statUpgradeLink" style="color:#F59E0B; text-decoration:underline;">upgrade to Pro</a></small>
                     </div>
                 </div>
             </div>
