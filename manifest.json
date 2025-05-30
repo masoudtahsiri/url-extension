@@ -1,12 +1,15 @@
 {
   "manifest_version": 3,
-  "name": "HTTP Status Peek",
-  "version": "1.0",
-  "description": "Check HTTP status codes and redirects for URLs",
+  "name": "HTTP Status Peek Pro",
+  "version": "1.0.0",
+  "description": "Check HTTP status codes and redirects for URLs with Pro features",
   "permissions": [
     "webRequest",
     "tabs",
-    "storage"
+    "storage",
+    "scripting",
+    "declarativeNetRequest",
+    "declarativeNetRequestWithHostAccess"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -34,7 +37,8 @@
       "frontend/upgrade.html",
       "frontend/upgrade.js",
       "frontend/settings.html",
-      "frontend/settings.js"
+      "frontend/settings.js",
+      "frontend/shared-utils.js"
     ],
     "matches": ["<all_urls>"]
   }]

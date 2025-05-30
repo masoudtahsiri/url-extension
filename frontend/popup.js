@@ -1,3 +1,5 @@
+// frontend/popup.js - Updated for Pro features
+
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('urlForm');
     const submitBtn = document.getElementById('submitBtn');
@@ -28,7 +30,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const file = fileInput.files[0];
             const reader = new FileReader();
             
-            reader.onload = function(e) {
+            reader.onload = async function(e) {
                 const content = e.target.result;
                 const lines = content.split('\n');
                 // Clean each URL by trimming whitespace and carriage returns
@@ -58,7 +60,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
                 console.log(`Found ${urls.length} valid URLs in CSV file`);
-                openResultsTab(urls);
+                
+                // Get pro settings before opening results tab
+                const proSettings = await getProSettings();
+                openResultsTab(urls, proSettings);
             };
 
             reader.onerror = function() {
@@ -78,12 +83,37 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        openResultsTab(urls);
+        // Get pro settings before opening results tab
+        const proSettings = await getProSettings();
+        openResultsTab(urls, proSettings);
     }
 
-    function openResultsTab(urls) {
-        // Store URLs in chrome.storage
-        chrome.storage.local.set({ urlsToCheck: urls }, function() {
+    async function getProSettings() {
+        return new Promise((resolve) => {
+            chrome.storage.sync.get(['isPro', 'proSettings'], function(result) {
+                if (result.isPro && result.proSettings) {
+                    resolve(result.proSettings);
+                } else {
+                    // Default settings for non-pro users
+                    resolve({
+                        userAgent: 'default',
+                        customHeaders: [],
+                        basicAuth: { enabled: false },
+                        checkCanonical: false,
+                        followRedirects: true,
+                        ignoreSSL: false
+                    });
+                }
+            });
+        });
+    }
+
+    function openResultsTab(urls, proSettings) {
+        // Store URLs and settings in chrome.storage
+        chrome.storage.local.set({ 
+            urlsToCheck: urls,
+            proSettingsToUse: proSettings 
+        }, function() {
             // Get the extension's URL
             const resultsUrl = chrome.runtime.getURL('frontend/results.html');
             // Open results page in a new tab
@@ -100,10 +130,21 @@ document.addEventListener('DOMContentLoaded', function() {
     if (settingsBtn) {
         settingsBtn.addEventListener('click', handleSettingsClick);
     }
+
+    // Check if user is pro and show indicator
+    chrome.storage.sync.get(['isPro'], function(result) {
+        if (result.isPro) {
+            // Add pro badge to settings button
+            const settingsBtn = document.getElementById('settingsBtn');
+            if (settingsBtn) {
+                settingsBtn.innerHTML = '<i class="fas fa-cog"></i> <span class="badge bg-warning text-dark" style="font-size: 0.6rem;">PRO</span>';
+            }
+        }
+    });
 });
 
 async function handleSettingsClick() {
-    // Check if user has Pro (for now, we'll use storage)
+    // Check if user has Pro
     const { isPro } = await chrome.storage.sync.get('isPro');
     
     if (isPro) {

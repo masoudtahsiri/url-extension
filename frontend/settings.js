@@ -1,0 +1,174 @@
+// frontend/settings.js
+
+// User agent strings
+const USER_AGENTS = {
+    default: '',
+    googlebot: 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+    'googlebot-mobile': 'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/W.X.Y.Z Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+    bingbot: 'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)',
+    facebookbot: 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+    twitterbot: 'Twitterbot/1.0',
+    linkedinbot: 'LinkedInBot/1.0 (compatible; Mozilla/5.0; Apache-HttpClient +http://www.linkedin.com)',
+    iphone: 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1',
+    android: 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.91 Mobile Safari/537.36',
+    custom: ''
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if user is pro
+    chrome.storage.sync.get(['isPro'], function(result) {
+        if (!result.isPro) {
+            window.location.href = chrome.runtime.getURL('frontend/upgrade.html');
+            return;
+        }
+    });
+
+    // Load settings
+    loadSettings();
+
+    // Event listeners
+    document.getElementById('userAgent').addEventListener('change', handleUserAgentChange);
+    document.getElementById('addHeaderBtn').addEventListener('click', addHeaderRow);
+    document.getElementById('basicAuthEnabled').addEventListener('change', handleBasicAuthToggle);
+    document.getElementById('saveBtn').addEventListener('click', saveSettings);
+});
+
+function loadSettings() {
+    chrome.storage.sync.get(['proSettings'], function(result) {
+        const settings = result.proSettings || getDefaultSettings();
+        
+        // User Agent
+        document.getElementById('userAgent').value = settings.userAgent || 'default';
+        if (settings.userAgent === 'custom' && settings.customUserAgent) {
+            document.getElementById('customUserAgent').value = settings.customUserAgent;
+            document.getElementById('customUserAgentGroup').style.display = 'block';
+        }
+        
+        // Custom Headers
+        if (settings.customHeaders && settings.customHeaders.length > 0) {
+            settings.customHeaders.forEach(header => {
+                addHeaderRow(header.name, header.value);
+            });
+        }
+        
+        // Basic Auth
+        if (settings.basicAuth) {
+            document.getElementById('basicAuthEnabled').checked = settings.basicAuth.enabled;
+            if (settings.basicAuth.enabled) {
+                document.getElementById('basicAuthFields').style.display = 'block';
+                document.getElementById('basicAuthUsername').value = settings.basicAuth.username || '';
+                document.getElementById('basicAuthPassword').value = settings.basicAuth.password || '';
+            }
+        }
+        
+        // Additional Features
+        document.getElementById('checkCanonical').checked = settings.checkCanonical || false;
+        document.getElementById('followRedirects').checked = settings.followRedirects !== false;
+        document.getElementById('ignoreSSL').checked = settings.ignoreSSL || false;
+    });
+}
+
+function getDefaultSettings() {
+    return {
+        userAgent: 'default',
+        customUserAgent: '',
+        customHeaders: [],
+        basicAuth: {
+            enabled: false,
+            username: '',
+            password: ''
+        },
+        checkCanonical: false,
+        followRedirects: true,
+        ignoreSSL: false
+    };
+}
+
+function handleUserAgentChange(e) {
+    const value = e.target.value;
+    const customGroup = document.getElementById('customUserAgentGroup');
+    
+    if (value === 'custom') {
+        customGroup.style.display = 'block';
+    } else {
+        customGroup.style.display = 'none';
+    }
+}
+
+function addHeaderRow(name = '', value = '') {
+    const container = document.getElementById('customHeaders');
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'custom-header-item';
+    
+    headerDiv.innerHTML = `
+        <input type="text" class="form-control header-name" placeholder="Header Name" value="${escapeHtml(name)}">
+        <input type="text" class="form-control header-value" placeholder="Header Value" value="${escapeHtml(value)}">
+        <button type="button" class="btn btn-sm btn-danger btn-icon remove-header">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+    
+    headerDiv.querySelector('.remove-header').addEventListener('click', function() {
+        headerDiv.remove();
+    });
+    
+    container.appendChild(headerDiv);
+}
+
+function handleBasicAuthToggle(e) {
+    const fields = document.getElementById('basicAuthFields');
+    fields.style.display = e.target.checked ? 'block' : 'none';
+}
+
+function saveSettings() {
+    const settings = {
+        userAgent: document.getElementById('userAgent').value,
+        customUserAgent: document.getElementById('customUserAgent').value,
+        customHeaders: [],
+        basicAuth: {
+            enabled: document.getElementById('basicAuthEnabled').checked,
+            username: document.getElementById('basicAuthUsername').value,
+            password: document.getElementById('basicAuthPassword').value
+        },
+        checkCanonical: document.getElementById('checkCanonical').checked,
+        followRedirects: document.getElementById('followRedirects').checked,
+        ignoreSSL: document.getElementById('ignoreSSL').checked
+    };
+    
+    // Collect custom headers
+    const headerItems = document.querySelectorAll('.custom-header-item');
+    headerItems.forEach(item => {
+        const name = item.querySelector('.header-name').value.trim();
+        const value = item.querySelector('.header-value').value.trim();
+        if (name && value) {
+            settings.customHeaders.push({ name, value });
+        }
+    });
+    
+    // Save to storage
+    chrome.storage.sync.set({ proSettings: settings }, function() {
+        showAlert('Settings saved successfully!', 'success');
+    });
+}
+
+function showAlert(message, type) {
+    const alertContainer = document.getElementById('alertContainer');
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type} alert-dismissible fade show`;
+    alert.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    alertContainer.appendChild(alert);
+    
+    setTimeout(() => {
+        alert.remove();
+    }, 3000);
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+} 

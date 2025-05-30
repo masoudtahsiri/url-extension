@@ -1,3 +1,5 @@
+// frontend/results.js - Updated for Pro features
+
 document.addEventListener('DOMContentLoaded', function() {
     const progressSection = document.getElementById('progressSection');
     const progressBar = document.getElementById('progressBar');
@@ -11,8 +13,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const urlSearch = document.getElementById('urlSearch');
     let allResults = []; // Store all results for filtering
     let selectedStatus = 'all';
+    let proSettings = null;
+    let isPro = false;
     const tableContainer = document.querySelector('.table-responsive');
     let originalTableMinHeight = null;
+
+    // Listen for progress updates from background script
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+        if (request.action === 'progressUpdate') {
+            updateProgress(request.processed, request.total);
+        }
+    });
 
     function showAlert(message, type) {
         const alertDiv = document.createElement('div');
@@ -37,8 +48,39 @@ document.addEventListener('DOMContentLoaded', function() {
     function displayResults(results) {
         allResults = results; // Store all results
         updateStatusFilter(results); // Update filter options based on results
+        updateTableHeaders(); // Update table headers for pro features
         filterResults(); // Apply initial filter
         resultsSection.style.display = 'block';
+    }
+
+    function updateTableHeaders() {
+        if (!isPro) return;
+        
+        const thead = resultsTable.querySelector('thead tr');
+        
+        // Check if we need to add canonical column
+        const hasCanonical = allResults.some(r => r.canonical_url);
+        if (hasCanonical && !document.getElementById('canonicalHeader')) {
+            const canonicalTh = document.createElement('th');
+            canonicalTh.id = 'canonicalHeader';
+            canonicalTh.textContent = 'Canonical URL';
+            
+            // Insert before the last column (Has Redirect)
+            const lastTh = thead.lastElementChild;
+            thead.insertBefore(canonicalTh, lastTh);
+        }
+        
+        // Check if we need to add user agent column
+        const hasUserAgent = allResults.some(r => r.user_agent && r.user_agent !== 'default');
+        if (hasUserAgent && !document.getElementById('userAgentHeader')) {
+            const uaTh = document.createElement('th');
+            uaTh.id = 'userAgentHeader';
+            uaTh.textContent = 'User Agent';
+            
+            // Insert before the last column
+            const lastTh = thead.lastElementChild;
+            thead.insertBefore(uaTh, lastTh);
+        }
     }
 
     function updateStatusFilter(results) {
@@ -91,6 +133,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 (result.target_url && result.target_url.toLowerCase().includes(searchTerm));
             return statusMatch && urlMatch;
         });
+        
+        const hasCanonical = allResults.some(r => r.canonical_url);
+        const hasUserAgent = allResults.some(r => r.user_agent && r.user_agent !== 'default');
+        
         filteredResults.forEach(result => {
             const row = tbody.insertRow();
             const statusCodes = extractStatusCodes(result); // Using shared function
@@ -98,13 +144,41 @@ document.addEventListener('DOMContentLoaded', function() {
             const cells = [
                 normalizeUrl(result.source_url || result.url || ''), // Using shared function
                 normalizeUrl(result.target_url || result.final_url || ''), // Using shared function
-                statusCodes.join(' → '),
-                result.hasRedirect ? 'yes' : 'no'
+                statusCodes.join(' → ')
             ];
             
-            cells.forEach(cellData => {
+            // Add canonical URL if pro and available
+            if (isPro && hasCanonical) {
+                if (result.canonical_url) {
+                    const canonicalCell = result.canonical_url;
+                    const matches = result.canonical_matches ? ' ✓' : ' ✗';
+                    cells.push(canonicalCell + matches);
+                } else {
+                    cells.push('-');
+                }
+            }
+            
+            // Add user agent if pro and available
+            if (isPro && hasUserAgent) {
+                cells.push(result.user_agent || 'default');
+            }
+            
+            // Add has redirect
+            cells.push(result.hasRedirect ? 'yes' : 'no');
+            
+            cells.forEach((cellData, index) => {
                 const cell = row.insertCell();
-                cell.textContent = cellData;
+                if (isPro && hasCanonical && index === 3) {
+                    // Canonical URL cell - add color coding
+                    cell.innerHTML = cellData;
+                    if (cellData.includes('✓')) {
+                        cell.style.color = '#00A878';
+                    } else if (cellData.includes('✗')) {
+                        cell.style.color = '#EF4444';
+                    }
+                } else {
+                    cell.textContent = cellData;
+                }
             });
         });
     }
@@ -116,11 +190,26 @@ document.addEventListener('DOMContentLoaded', function() {
         return value;
     }
 
-    // Get URLs from chrome.storage
-    chrome.storage.local.get(['urlsToCheck'], function(result) {
+    // Get URLs and settings from chrome.storage
+    chrome.storage.local.get(['urlsToCheck', 'proSettingsToUse'], function(result) {
         if (result.urlsToCheck && result.urlsToCheck.length > 0) {
             const urls = result.urlsToCheck;
-            processUrls(urls);
+            proSettings = result.proSettingsToUse || {};
+            
+            // Check if user is pro
+            chrome.storage.sync.get(['isPro'], function(syncResult) {
+                isPro = syncResult.isPro || false;
+                
+                // Show pro indicator if applicable
+                if (isPro) {
+                    const header = document.querySelector('.card-header h2');
+                    if (header) {
+                        header.innerHTML += ' <span class="badge bg-warning text-dark ms-2" style="font-size: 0.7rem;">PRO</span>';
+                    }
+                }
+                
+                processUrls(urls);
+            });
         } else {
             showAlert('No URLs to check', 'warning');
         }
@@ -138,13 +227,15 @@ document.addEventListener('DOMContentLoaded', function() {
         updateProgress(0, uniqueUrls.length);
         
         try {
+            // Process URLs one by one
             const results = [];
             for (let i = 0; i < uniqueUrls.length; i++) {
                 const url = uniqueUrls[i];
                 try {
                     const response = await chrome.runtime.sendMessage({
                         action: 'checkUrl',
-                        url: url
+                        url: url,
+                        proSettings: proSettings
                     });
                     if (response && response.status === 'success') {
                         results.push(response.data);
@@ -157,33 +248,61 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             displayResults(results);
-            
-            // Create CSV content
-            const csvContent = [
-                'Original URL,Final URL,Status Codes,Has Redirect',
-                ...results.map(result => {
-                    const statusCodes = extractStatusCodes(result); // Using shared function
-                    return [
-                        escapeCSV(normalizeUrl(result.source_url || result.url || '')), // Using shared functions
-                        escapeCSV(normalizeUrl(result.target_url || result.final_url || '')),
-                        escapeCSV(statusCodes.join(' → ')),
-                        escapeCSV(result.hasRedirect ? 'yes' : 'no')
-                    ].join(',');
-                })
-            ].join('\n');
-
-            // Create download link
-            const blob = new Blob([csvContent], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-            downloadButton.href = url;
-            downloadButton.download = 'url-check-results.csv';
-            downloadButton.style.display = 'block';
-
-            showAlert(`${urls.length} URLs processed successfully!`, 'success');
+            createDownloadLink(results);
+            showAlert(`${uniqueUrls.length} URLs processed successfully!`, 'success');
         } catch (error) {
             console.error('Error:', error);
             showAlert('An error occurred while processing URLs', 'danger');
         }
+    }
+
+    function createDownloadLink(results) {
+        // Create CSV content with pro features
+        const headers = ['Original URL', 'Final URL', 'Status Codes'];
+        
+        if (isPro && results.some(r => r.canonical_url)) {
+            headers.push('Canonical URL', 'Canonical Matches');
+        }
+        
+        if (isPro && results.some(r => r.user_agent && r.user_agent !== 'default')) {
+            headers.push('User Agent');
+        }
+        
+        headers.push('Has Redirect');
+        
+        const csvContent = [
+            headers.join(','),
+            ...results.map(result => {
+                const statusCodes = extractStatusCodes(result);
+                const row = [
+                    escapeCSV(normalizeUrl(result.source_url || result.url || '')),
+                    escapeCSV(normalizeUrl(result.target_url || result.final_url || '')),
+                    escapeCSV(statusCodes.join(' → '))
+                ];
+                
+                if (isPro && results.some(r => r.canonical_url)) {
+                    row.push(
+                        escapeCSV(result.canonical_url || ''),
+                        escapeCSV(result.canonical_matches ? 'yes' : 'no')
+                    );
+                }
+                
+                if (isPro && results.some(r => r.user_agent && r.user_agent !== 'default')) {
+                    row.push(escapeCSV(result.user_agent || 'default'));
+                }
+                
+                row.push(escapeCSV(result.hasRedirect ? 'yes' : 'no'));
+                
+                return row.join(',');
+            })
+        ].join('\n');
+
+        // Create download link
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        downloadButton.href = url;
+        downloadButton.download = `url-check-results-${new Date().toISOString().slice(0, 10)}.csv`;
+        downloadButton.style.display = 'block';
     }
 
     // Excel-style dropdown logic
