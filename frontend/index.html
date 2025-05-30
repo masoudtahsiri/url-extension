@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HTTP Status Peek</title>
+    <title>HTTPScanr</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
@@ -344,13 +344,50 @@
         .url-input-group .clear-btn.visible {
             display: block;
         }
+
+        #upgradeBtn {
+            padding: 0.35rem 0.9rem;
+            font-size: 0.85rem;
+            border-radius: 0.5rem;
+            margin: 0 0.5rem;
+            width: auto;
+            box-shadow: 0 2px 6px -1px rgba(245, 158, 11, 0.12);
+            display: inline-flex;
+            align-items: center;
+            height: 2.1rem;
+        }
+        #upgradeBtn i {
+            font-size: 1rem;
+            margin-right: 0.4em;
+        }
+        @media (max-width: 600px) {
+            #upgradeBtn {
+                font-size: 0.78rem;
+                padding: 0.25rem 0.7rem;
+            }
+        }
+        .header-title {
+            font-weight: 800;
+            font-size: 1.15rem;
+            letter-spacing: -0.01em;
+        }
+        #upgradeBtn {
+            margin-left: auto;
+            margin-right: 0.5rem;
+        }
+        .mt-5 {
+            margin-top: 2rem !important;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="card">
-            <div class="card-header">
-                <h2>HTTP Status Peek</h2>
+            <div class="card-header d-flex align-items-center">
+                <span class="header-title"><i class="fas fa-link me-2"></i>HTTPScanr</span>
+                <button type="button" class="btn btn-warning" id="upgradeBtn" style="display: none;">
+                    <i class="fas fa-crown me-2"></i>Upgrade to Pro
+                </button>
                 <button type="button" class="btn btn-sm btn-light" id="settingsBtn">
                     <i class="fas fa-cog"></i>
                 </button>
@@ -372,12 +409,8 @@
                         <small id="urlCount" class="form-text text-muted"></small>
                     </div>
 
-                    <button type="submit" class="btn btn-primary" id="submitBtn">
-                        <i class="fas fa-search me-2"></i>Check URLs
-                    </button>
-
-                    <button type="button" class="btn btn-warning mt-2" id="upgradeBtn" style="display: none;">
-                        <i class="fas fa-crown me-2"></i>Upgrade to Pro
+                    <button type="submit" class="btn btn-primary d-block mx-auto" id="submitBtn">
+                        <i class="fas fa-search me-2"></i>Scan
                     </button>
                 </form>
 

@@ -158,8 +158,15 @@ function loadStats() {
     // Check if pro to update URL limit display
     chrome.storage.sync.get(['isPro'], function(result) {
         const urlLimitElement = document.getElementById('urlLimit');
-        if (urlLimitElement && !result.isPro) {
-            urlLimitElement.textContent = '100';
+        const upgradeMsg = document.querySelector('.stat-card .text-muted');
+        if (urlLimitElement) {
+            if (result.isPro) {
+                urlLimitElement.textContent = '∞';
+                if (upgradeMsg) upgradeMsg.style.display = 'none';
+            } else {
+                urlLimitElement.textContent = '100';
+                if (upgradeMsg) upgradeMsg.style.display = 'block';
+            }
         }
     });
 }

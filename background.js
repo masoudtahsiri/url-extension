@@ -6,7 +6,7 @@
 // =================================================================
 
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('HTTP Status Peek Extension installed');
+  console.log('HTTPScanr Extension installed');
 });
 
 // =================================================================

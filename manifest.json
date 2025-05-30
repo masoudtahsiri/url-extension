@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "HTTP Status Peek",
+  "name": "HTTPScanr",
   "version": "1.0.0",
   "description": "Check HTTP status codes and redirects for URLs",
   "permissions": [
