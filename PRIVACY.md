@@ -22,4 +22,4 @@ All processing is done locally in your browser. Any data used for Pro features (
 
 ## Contact
 
-If you have questions about this privacy policy, please contact: support@httpscanr.com 
+If you have questions about this privacy policy, please contact: dev@refact.co
