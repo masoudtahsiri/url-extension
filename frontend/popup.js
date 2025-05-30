@@ -21,16 +21,24 @@ document.addEventListener('DOMContentLoaded', function() {
         const upgradeBtn = document.getElementById('upgradeBtn');
         
         if (settingsBtn) {
-            if (isPro) {
-                settingsBtn.innerHTML = '<i class="fas fa-cog"></i> <span class="badge bg-warning text-dark" style="font-size: 0.6rem;">PRO</span>';
-            } else {
-                settingsBtn.innerHTML = '<i class="fas fa-cog"></i>';
-            }
+            // Keep settings button clean
+            settingsBtn.innerHTML = '<i class="fas fa-cog"></i>';
         }
         
-        // Show upgrade button for non-pro users
+        // Handle upgrade button / PRO badge
         if (upgradeBtn) {
-            upgradeBtn.style.display = isPro ? 'none' : 'block';
+            if (isPro) {
+                // Replace upgrade button with PRO badge
+                upgradeBtn.className = 'btn btn-warning';
+                upgradeBtn.innerHTML = '<i class="fas fa-crown me-1"></i>PRO';
+                upgradeBtn.disabled = true;
+                upgradeBtn.style.cursor = 'default';
+                upgradeBtn.style.display = 'block';
+                upgradeBtn.removeEventListener('click', handleUpgradeClick);
+            } else {
+                // Show upgrade button for non-pro users
+                upgradeBtn.style.display = 'block';
+            }
         }
     }
 
