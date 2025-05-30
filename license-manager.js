@@ -27,7 +27,7 @@ class LicenseManager {
 
         try {
             // IMPORTANT: Set this to false before publishing!
-            const isDevelopment = false; // MUST BE false
+            const isDevelopment = true; // Developer mode enabled
             
             if (isDevelopment) {
                 console.warn('⚠️ DEVELOPMENT MODE - Pro features enabled');

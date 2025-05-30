@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         
         // IMPORTANT: Before publishing, this will open the Chrome Web Store page
         // For development/testing, you can use the test mode
-        const isDevelopment = false; // MUST BE false
+        const isDevelopment = true; // Developer mode enabled
         
         if (isDevelopment) {
             // Development mode - simulate purchase
