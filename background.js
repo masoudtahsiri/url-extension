@@ -6,7 +6,7 @@
 // =================================================================
 
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('HTTPScanr Extension installed');
+  console.log('HTTP Status Peek Extension installed');
 });
 
 // =================================================================
@@ -293,105 +293,173 @@ async function checkUrl(url) {
   return new Promise((resolve, reject) => {
     let tabId = null;
     let isComplete = false;
-    const startTime = Date.now(); // Track when we start
-
-    // Create a background tab
-    chrome.tabs.create({ 
-      url: url, 
-      active: false,
-      pinned: true
-    }, (tab) => {
-      tabId = tab.id;
-      console.log('Created tab with ID:', tabId);
-      
-      // Initialize tracking for this tab
-      requestTracking.delete(tabId); // Clear any old data first
-      requestTracking.set(tabId, {
-        requests: [],
-        redirects: [],
-        initialUrl: url,
-        requestSequence: [],
-        allResponses: []
-      });
-
-      // Set a timeout
-      const timeout = setTimeout(() => {
-        console.log('TIMEOUT: Request took too long');
-        cleanup();
-        const tracking = requestTracking.get(tabId) || {};
-        console.log('Tracking data at timeout:', tracking);
-        const result = buildResult(originalUrl, url, tracking);
-        resolve(result);
-      }, 15000); // 15 second timeout
-
-      const cleanup = () => {
-        isComplete = true;
-        clearTimeout(timeout);
-        if (tabId) {
-          chrome.tabs.remove(tabId).catch(() => {});
-          // Clean up tracking after a delay
-          setTimeout(() => {
-            requestTracking.delete(tabId);
-          }, 2000); // 2 second wait time
+    const startTime = Date.now();
+    
+    // Retry configuration
+    const maxRetries = 3;
+    const retryDelay = 1000; // 1 second between retries
+    
+    const attemptTabCreation = (retryCount = 0) => {
+      // Create a background tab
+      chrome.tabs.create({ 
+        url: url, 
+        active: false,
+        pinned: true
+      }, (tab) => {
+        // Check for errors first
+        if (chrome.runtime.lastError) {
+          console.error(`Tab creation attempt ${retryCount + 1} failed:`, chrome.runtime.lastError.message);
+          
+          // If we have retries left, try again
+          if (retryCount < maxRetries - 1) {
+            console.log(`Retrying in ${retryDelay}ms... (${retryCount + 1}/${maxRetries})`);
+            setTimeout(() => {
+              attemptTabCreation(retryCount + 1);
+            }, retryDelay);
+            return;
+          }
+          
+          // All retries exhausted
+          console.error('All retry attempts failed');
+          resolve({
+            url: originalUrl,
+            source_url: url,
+            target_url: url,
+            hasRedirect: false,
+            status: 0,
+            error: `Failed after ${maxRetries} attempts: ${chrome.runtime.lastError.message}`,
+            isSafe: false
+          });
+          return;
         }
-      };
-
-      // Check tab status periodically
-      let checkCount = 0;
-      const checkInterval = setInterval(() => {
-        checkCount++;
-        if (isComplete) {
-          clearInterval(checkInterval);
+        
+        // Check if tab was created successfully
+        if (!tab) {
+          console.error(`Tab creation attempt ${retryCount + 1} failed - no tab object returned`);
+          
+          // If we have retries left, try again
+          if (retryCount < maxRetries - 1) {
+            console.log(`Retrying in ${retryDelay}ms... (${retryCount + 1}/${maxRetries})`);
+            setTimeout(() => {
+              attemptTabCreation(retryCount + 1);
+            }, retryDelay);
+            return;
+          }
+          
+          // All retries exhausted
+          console.error('All retry attempts failed');
+          resolve({
+            url: originalUrl,
+            source_url: url,
+            target_url: url,
+            hasRedirect: false,
+            status: 0,
+            error: `Failed after ${maxRetries} attempts: Tab creation returned null`,
+            isSafe: false
+          });
           return;
         }
 
-        chrome.tabs.get(tabId, (tab) => {
-          if (chrome.runtime.lastError || !tab) {
-            console.log('Tab error or not found');
+        // Success!
+        if (retryCount > 0) {
+          console.log(`Tab created successfully on attempt ${retryCount + 1}`);
+        }
+        
+        tabId = tab.id;
+        console.log('Created tab with ID:', tabId);
+        
+        // Initialize tracking for this tab
+        requestTracking.delete(tabId); // Clear any old data first
+        requestTracking.set(tabId, {
+          requests: [],
+          redirects: [],
+          initialUrl: url,
+          requestSequence: [],
+          allResponses: []
+        });
+
+        // Set a timeout
+        const timeout = setTimeout(() => {
+          console.log('TIMEOUT: Request took too long');
+          cleanup();
+          const tracking = requestTracking.get(tabId) || {};
+          console.log('Tracking data at timeout:', tracking);
+          const result = buildResult(originalUrl, url, tracking);
+          resolve(result);
+        }, 15000); // 15 second timeout
+
+        const cleanup = () => {
+          isComplete = true;
+          clearTimeout(timeout);
+          if (tabId) {
+            chrome.tabs.remove(tabId).catch(() => {});
+            // Clean up tracking after a delay
+            setTimeout(() => {
+              requestTracking.delete(tabId);
+            }, 2000); // 2 second wait time
+          }
+        };
+
+        // Check tab status periodically
+        let checkCount = 0;
+        const checkInterval = setInterval(() => {
+          checkCount++;
+          if (isComplete) {
             clearInterval(checkInterval);
-            cleanup();
-            const tracking = requestTracking.get(tabId) || {};
-            const result = buildResult(originalUrl, url, tracking);
-            resolve(result);
             return;
           }
 
-          const tracking = requestTracking.get(tabId);
-          
-          console.log(`Check #${checkCount} - Tab status: ${tab.status}, URL: ${tab.url}, Tracking completed: ${tracking?.completed}`);
-          
-          // Wait for tab to complete loading and we have tracking data
-          if (tab.status === 'complete' && tracking && tracking.completed) {
-            // Add a check for minimum elapsed time
-            const elapsedTime = Date.now() - startTime;
-            if (elapsedTime < 500) {
-              // Don't consider it done too quickly
-              console.log(`Not done yet - only ${elapsedTime}ms elapsed`);
+          chrome.tabs.get(tabId, (tab) => {
+            if (chrome.runtime.lastError || !tab) {
+              console.log('Tab error or not found');
+              clearInterval(checkInterval);
+              cleanup();
+              const tracking = requestTracking.get(tabId) || {};
+              const result = buildResult(originalUrl, url, tracking);
+              resolve(result);
               return;
             }
 
-            console.log('Tab loading complete with tracking data');
-            clearInterval(checkInterval);
+            const tracking = requestTracking.get(tabId);
             
-            // Wait a bit for any final webRequest events
-            setTimeout(() => {
-              tracking.finalUrl = tracking.finalUrl || tab.url;
+            console.log(`Check #${checkCount} - Tab status: ${tab.status}, URL: ${tab.url}, Tracking completed: ${tracking?.completed}`);
+            
+            // Wait for tab to complete loading and we have tracking data
+            if (tab.status === 'complete' && tracking && tracking.completed) {
+              // Add a check for minimum elapsed time
+              const elapsedTime = Date.now() - startTime;
+              if (elapsedTime < 500) {
+                // Don't consider it done too quickly
+                console.log(`Not done yet - only ${elapsedTime}ms elapsed`);
+                return;
+              }
+
+              console.log('Tab loading complete with tracking data');
+              clearInterval(checkInterval);
               
-              console.log('=== FINAL TRACKING DATA ===');
-              console.log('Requests:', tracking.requests);
-              console.log('Redirects:', tracking.redirects);
-              console.log('All Responses:', tracking.allResponses);
-              console.log('Final URL:', tracking.finalUrl);
-              console.log('Final Status:', tracking.finalStatus);
-              
-              cleanup();
-              const result = buildResult(originalUrl, url, tracking);
-              resolve(result);
-            }, 2000); // Increased wait time to 2000ms
-          }
-        });
-      }, 500); // Check every 500ms
-    });
+              // Wait a bit for any final webRequest events
+              setTimeout(() => {
+                tracking.finalUrl = tracking.finalUrl || tab.url;
+                
+                console.log('=== FINAL TRACKING DATA ===');
+                console.log('Requests:', tracking.requests);
+                console.log('Redirects:', tracking.redirects);
+                console.log('All Responses:', tracking.allResponses);
+                console.log('Final URL:', tracking.finalUrl);
+                console.log('Final Status:', tracking.finalStatus);
+                
+                cleanup();
+                const result = buildResult(originalUrl, url, tracking);
+                resolve(result);
+              }, 2000); // Increased wait time to 2000ms
+            }
+          });
+        }, 500); // Check every 500ms
+      });
+    };
+    
+    // Start the first attempt
+    attemptTabCreation(0);
   });
 }
 
