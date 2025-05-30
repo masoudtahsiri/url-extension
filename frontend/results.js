@@ -1,4 +1,4 @@
-// frontend/results.js - Updated with Pro features (filtering, Google Sheets export)
+// frontend/results.js - Secure version with license validation
 
 document.addEventListener('DOMContentLoaded', function() {
     const progressSection = document.getElementById('progressSection');
@@ -16,6 +16,21 @@ document.addEventListener('DOMContentLoaded', function() {
     let isPro = false;
     const tableContainer = document.querySelector('.table-responsive');
     let originalTableMinHeight = null;
+
+    // Validate license status via background script
+    async function checkProStatus() {
+        try {
+            const response = await chrome.runtime.sendMessage({ 
+                action: 'validateLicense' 
+            });
+            isPro = response.isPro === true;
+            return isPro;
+        } catch (error) {
+            console.error('License validation error:', error);
+            isPro = false;
+            return false;
+        }
+    }
 
     // Listen for progress updates from background script
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -300,6 +315,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 opacity: 0;
             }
         }
+        .selected-filter { 
+            background: #e6f7ec !important; 
+            font-weight: bold; 
+            color: #046A38; 
+        }
     `;
     document.head.appendChild(style);
 
@@ -337,6 +357,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function exportToGoogleSheets(event) {
+        // Re-validate Pro license before export
+        const isValidPro = await checkProStatus();
+        if (!isValidPro) {
+            showAlert('Google Sheets export requires a Pro license', 'warning');
+            return;
+        }
+
         // Get the button and store original content
         const sheetsBtn = event.target.closest('button');
         const originalContent = sheetsBtn.innerHTML;
@@ -351,6 +378,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const token = await getGoogleAuthToken();
             if (!token) {
                 showAlert('Please authenticate with Google to export to Sheets', 'warning');
+                sheetsBtn.innerHTML = originalContent;
+                sheetsBtn.disabled = originalDisabled;
                 return;
             }
             
@@ -387,10 +416,10 @@ document.addEventListener('DOMContentLoaded', function() {
             const spreadsheetUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
             chrome.tabs.create({ url: spreadsheetUrl });
             
-            // Update export count
-            chrome.storage.local.get(['sheetsExports'], function(result) {
-                const newTotal = (result.sheetsExports || 0) + 1;
-                chrome.storage.local.set({ sheetsExports: newTotal });
+            // Update export count (encrypted)
+            chrome.storage.local.get(['_se'], function(result) {
+                const current = parseInt(atob(result._se || 'MA==')) || 0;
+                chrome.storage.local.set({ _se: btoa((current + 1).toString()) });
             });
             
             showAlert('Successfully exported to Google Sheets!', 'success');
@@ -508,11 +537,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Then update your chrome.storage.local.get callback:
-    chrome.storage.local.get(['urlsToCheck', 'isPro'], function(result) {
+    // Main initialization
+    chrome.storage.local.get(['urlsToCheck'], async function(result) {
         if (result.urlsToCheck && result.urlsToCheck.length > 0) {
             const urls = result.urlsToCheck;
-            isPro = result.isPro || false;
+            
+            // Validate license status
+            isPro = await checkProStatus();
             
             // Show pro indicator if applicable
             if (isPro) {
@@ -556,11 +587,11 @@ document.addEventListener('DOMContentLoaded', function() {
             displayResults(results);
             showAlert(`${urls.length} URLs processed successfully!`, 'success');
             
-            // Update statistics for Pro users
+            // Update statistics for Pro users (encrypted)
             if (isPro) {
-                chrome.storage.local.get(['totalChecks'], function(result) {
-                    const newTotal = (result.totalChecks || 0) + urls.length;
-                    chrome.storage.local.set({ totalChecks: newTotal });
+                chrome.storage.local.get(['_tc'], function(result) {
+                    const current = parseInt(atob(result._tc || 'MA==')) || 0;
+                    chrome.storage.local.set({ _tc: btoa((current + urls.length).toString()) });
                 });
             }
         } catch (error) {
@@ -568,9 +599,4 @@ document.addEventListener('DOMContentLoaded', function() {
             showAlert('An error occurred while processing URLs', 'danger');
         }
     }
-});
-
-/* Add this CSS at the end of the file for highlight */
-const style = document.createElement('style');
-style.innerHTML = `.selected-filter { background: #e6f7ec !important; font-weight: bold; color: #046A38; }`;
-document.head.appendChild(style); 
+}); 

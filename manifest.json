@@ -7,15 +7,18 @@
     "webRequest",
     "tabs",
     "storage",
-    "identity"
+    "identity",
+    "identity.email"
   ],
   "host_permissions": [
     "<all_urls>"
   ],
   "oauth2": {
-    "client_id": "938933537151-86svd07bnpb55l1ltqjcor6vf90dftpo.apps.googleusercontent.com",
+    "client_id": "293498623995-7gmrdjsqdieo5biqjtc8i7kecil96dm5.apps.googleusercontent.com",
     "scopes": [
-      "https://www.googleapis.com/auth/spreadsheets"
+      "https://www.googleapis.com/auth/spreadsheets",
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/chromewebstore.readonly"
     ]
   },
   "action": {

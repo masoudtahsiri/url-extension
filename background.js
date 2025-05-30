@@ -1,13 +1,24 @@
-// background.js - HTTP Status Peek Extension
+// background.js - HTTP Status Peek Extension with Secure License Management
 // Organized into clear sections for better maintainability
 
 // =================================================================
 // INITIALIZATION
 // =================================================================
 
+// Import license manager
+importScripts('license-manager.js');
+
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('HTTP Status Peek Extension installed');
+  // Initial license check
+  licenseManager.checkLicense().then(isPro => {
+    // Silent check - no logging
+  });
 });
+
+// Periodic license validation (every 30 minutes)
+setInterval(() => {
+  licenseManager.checkLicense();
+}, 30 * 60 * 1000);
 
 // =================================================================
 // REQUEST TRACKING
@@ -16,18 +27,9 @@ chrome.runtime.onInstalled.addListener(() => {
 // Store for tracking requests by tabId
 const requestTracking = new Map();
 
-// Enhanced logging function
+// Enhanced logging function (now silent)
 function logRequest(type, details, extra = {}) {
-  const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] ${type}:`, {
-    url: details.url,
-    tabId: details.tabId,
-    requestId: details.requestId,
-    statusCode: details.statusCode,
-    type: details.type,
-    frameId: details.frameId,
-    ...extra
-  });
+  // All logging disabled for production
 }
 
 // Clean up old tracking data periodically
@@ -48,20 +50,24 @@ setInterval(() => {
 // Listen for messages from the popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'checkUrl') {
-    console.log('=== STARTING URL CHECK ===');
-    console.log('Target URL:', request.url);
     checkUrl(request.url)
       .then(result => {
-        console.log('=== FINAL RESULT ===');
-        console.log(JSON.stringify(result, null, 2));
         sendResponse({ status: 'success', data: result });
       })
       .catch(error => {
-        console.error('Error checking URL:', error);
         sendResponse({ status: 'error', message: error.message });
       });
     return true; // Keep message channel open for async response
   }
+  
+  if (request.action === 'validateLicense') {
+    licenseManager.checkLicense().then(isPro => {
+      sendResponse({ isPro: isPro });
+    });
+    return true; // Keep message channel open for async response
+  }
+  
+  return false;
 });
 
 // =================================================================
@@ -235,12 +241,6 @@ chrome.webRequest.onCompleted.addListener(
         requestId: details.requestId,
         timestamp: Date.now()
       });
-      
-      // Log the complete sequence for this tab
-      console.log('=== REQUEST SEQUENCE FOR TAB', details.tabId, '===');
-      tracking.requestSequence.forEach((seq, index) => {
-        console.log(`${index + 1}. [${seq.event}] ${seq.url || seq.fromUrl} (${seq.status || 'N/A'})`);
-      });
     }
   },
   { urls: ["<all_urls>"] }
@@ -288,8 +288,6 @@ async function checkUrl(url) {
     url = 'https://' + url;
   }
 
-  console.log('Normalized URL:', url);
-
   return new Promise((resolve, reject) => {
     let tabId = null;
     let isComplete = false;
@@ -308,11 +306,8 @@ async function checkUrl(url) {
       }, (tab) => {
         // Check for errors first
         if (chrome.runtime.lastError) {
-          console.error(`Tab creation attempt ${retryCount + 1} failed:`, chrome.runtime.lastError.message);
-          
           // If we have retries left, try again
           if (retryCount < maxRetries - 1) {
-            console.log(`Retrying in ${retryDelay}ms... (${retryCount + 1}/${maxRetries})`);
             setTimeout(() => {
               attemptTabCreation(retryCount + 1);
             }, retryDelay);
@@ -320,7 +315,6 @@ async function checkUrl(url) {
           }
           
           // All retries exhausted
-          console.error('All retry attempts failed');
           resolve({
             url: originalUrl,
             source_url: url,
@@ -335,11 +329,8 @@ async function checkUrl(url) {
         
         // Check if tab was created successfully
         if (!tab) {
-          console.error(`Tab creation attempt ${retryCount + 1} failed - no tab object returned`);
-          
           // If we have retries left, try again
           if (retryCount < maxRetries - 1) {
-            console.log(`Retrying in ${retryDelay}ms... (${retryCount + 1}/${maxRetries})`);
             setTimeout(() => {
               attemptTabCreation(retryCount + 1);
             }, retryDelay);
@@ -347,7 +338,6 @@ async function checkUrl(url) {
           }
           
           // All retries exhausted
-          console.error('All retry attempts failed');
           resolve({
             url: originalUrl,
             source_url: url,
@@ -361,12 +351,7 @@ async function checkUrl(url) {
         }
 
         // Success!
-        if (retryCount > 0) {
-          console.log(`Tab created successfully on attempt ${retryCount + 1}`);
-        }
-        
         tabId = tab.id;
-        console.log('Created tab with ID:', tabId);
         
         // Initialize tracking for this tab
         requestTracking.delete(tabId); // Clear any old data first
@@ -380,10 +365,8 @@ async function checkUrl(url) {
 
         // Set a timeout
         const timeout = setTimeout(() => {
-          console.log('TIMEOUT: Request took too long');
           cleanup();
           const tracking = requestTracking.get(tabId) || {};
-          console.log('Tracking data at timeout:', tracking);
           const result = buildResult(originalUrl, url, tracking);
           resolve(result);
         }, 15000); // 15 second timeout
@@ -411,7 +394,6 @@ async function checkUrl(url) {
 
           chrome.tabs.get(tabId, (tab) => {
             if (chrome.runtime.lastError || !tab) {
-              console.log('Tab error or not found');
               clearInterval(checkInterval);
               cleanup();
               const tracking = requestTracking.get(tabId) || {};
@@ -422,39 +404,28 @@ async function checkUrl(url) {
 
             const tracking = requestTracking.get(tabId);
             
-            console.log(`Check #${checkCount} - Tab status: ${tab.status}, URL: ${tab.url}, Tracking completed: ${tracking?.completed}`);
-            
             // Wait for tab to complete loading and we have tracking data
             if (tab.status === 'complete' && tracking && tracking.completed) {
               // Add a check for minimum elapsed time
               const elapsedTime = Date.now() - startTime;
               if (elapsedTime < 500) {
                 // Don't consider it done too quickly
-                console.log(`Not done yet - only ${elapsedTime}ms elapsed`);
                 return;
               }
 
-              console.log('Tab loading complete with tracking data');
               clearInterval(checkInterval);
               
               // Wait a bit for any final webRequest events
               setTimeout(() => {
                 tracking.finalUrl = tracking.finalUrl || tab.url;
                 
-                console.log('=== FINAL TRACKING DATA ===');
-                console.log('Requests:', tracking.requests);
-                console.log('Redirects:', tracking.redirects);
-                console.log('All Responses:', tracking.allResponses);
-                console.log('Final URL:', tracking.finalUrl);
-                console.log('Final Status:', tracking.finalStatus);
-                
                 cleanup();
                 const result = buildResult(originalUrl, url, tracking);
                 resolve(result);
-              }, 2000); // Increased wait time to 2000ms
+              }, 800); // Change from 2000ms to 800ms
             }
           });
-        }, 500); // Check every 500ms
+        }, 250); // Change from 500ms to 250ms
       });
     };
     
@@ -469,11 +440,6 @@ async function checkUrl(url) {
 
 // Build the result from tracking data
 function buildResult(originalUrl, startUrl, tracking) {
-  console.log('=== BUILDING RESULT ===');
-  console.log('Original URL:', originalUrl);
-  console.log('Start URL:', startUrl);
-  console.log('Tracking:', tracking);
-  
   const finalUrl = tracking.finalUrl || startUrl;
   
   // Clean URLs for comparison
@@ -505,8 +471,6 @@ function buildResult(originalUrl, startUrl, tracking) {
   if (hasRedirect) {
     const chain = buildRedirectChain(tracking);
     
-    console.log('Built redirect chain:', chain);
-    
     if (chain.length > 0) {
       result.redirect_chain = chain;
     }
@@ -533,18 +497,13 @@ function buildResult(originalUrl, startUrl, tracking) {
     result.isSafe = finalStatus >= 200 && finalStatus < 400;
   }
 
-  console.log('Built result:', result);
   return result;
 }
 
 // Build a proper redirect chain from requests and redirects data
 function buildRedirectChain(tracking) {
-  console.log('=== BUILDING REDIRECT CHAIN ===');
   const chain = [];
   const { allResponses, redirects } = tracking;
-  
-  console.log('All responses:', allResponses);
-  console.log('All redirects with details:', JSON.stringify(redirects, null, 2));
   
   // If we have explicit redirect data, use it
   if (redirects && redirects.length > 0) {
@@ -553,11 +512,6 @@ function buildRedirectChain(tracking) {
     
     for (let i = 0; i < sortedRedirects.length; i++) {
       const redirect = sortedRedirects[i];
-      console.log(`Processing redirect ${i + 1}:`, {
-        from: redirect.fromUrl,
-        to: redirect.toUrl,
-        status: redirect.status
-      });
       
       const chainItem = {
         status: redirect.status,

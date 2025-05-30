@@ -1,4 +1,4 @@
-// frontend/settings.js - Simplified for Google Sheets integration
+// frontend/settings.js - Secure version with license validation
 
 // User agent strings
 const USER_AGENTS = {
@@ -14,35 +14,57 @@ const USER_AGENTS = {
     custom: ''
 };
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     let isPro = false;
     
-    // Check if user is pro
-    chrome.storage.sync.get(['isPro'], function(result) {
-        isPro = result.isPro || false;
-        
-        // Update version badge
-        const versionBadge = document.getElementById('versionBadge');
-        if (versionBadge) {
-            if (isPro) {
-                versionBadge.textContent = 'PRO VERSION';
-                versionBadge.style.background = 'rgba(255, 255, 255, 0.2)';
-            } else {
-                versionBadge.textContent = 'FREE VERSION';
-                versionBadge.style.background = 'rgba(255, 255, 255, 0.15)';
-            }
+    // Check license status via background script
+    async function checkProStatus() {
+        try {
+            const response = await chrome.runtime.sendMessage({ 
+                action: 'validateLicense' 
+            });
+            isPro = response.isPro === true;
+            return isPro;
+        } catch (error) {
+            console.error('License validation error:', error);
+            isPro = false;
+            return false;
         }
-        
-        if (!isPro) {
-            // Show overlay for non-pro users
-            document.getElementById('googleSheetsCard').classList.add('locked');
-        }
-        
-        // Load settings and stats regardless of pro status
+    }
+    
+    // Initial license check
+    isPro = await checkProStatus();
+    
+    // Update UI based on pro status
+    const versionBadge = document.querySelector('.settings-header .badge');
+    if (versionBadge) {
         if (isPro) {
-            loadGoogleStatus();
+            versionBadge.textContent = 'PRO VERSION';
+            versionBadge.style.background = 'rgba(255, 255, 255, 0.2)';
+        } else {
+            versionBadge.textContent = 'FREE VERSION';
+            versionBadge.style.background = 'rgba(255, 255, 255, 0.15)';
         }
-        loadStats();
+    }
+    
+    if (!isPro) {
+        // Show overlay for non-pro users
+        document.getElementById('googleSheetsCard').classList.add('locked');
+    } else {
+        // Load Google status for Pro users
+        loadGoogleStatus();
+    }
+    
+    // Always load stats
+    loadStats();
+
+    // Re-check when window gains focus
+    window.addEventListener('focus', async () => {
+        const newProStatus = await checkProStatus();
+        if (newProStatus !== isPro) {
+            // Status changed, reload page
+            window.location.reload();
+        }
     });
 
     // Event listeners
@@ -59,21 +81,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const upgradeOverlayBtn = document.getElementById('upgradeOverlayBtn');
     if (upgradeOverlayBtn) {
         upgradeOverlayBtn.addEventListener('click', function() {
-            // Simulate purchase for testing (same as upgradeBtn)
-            const btn = this;
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
-            setTimeout(() => {
-                // Simulate successful purchase
-                chrome.storage.sync.set({ isPro: true }, function() {
-                    chrome.storage.local.set({ 
-                        totalChecks: 0,
-                        sheetsExports: 0
-                    }, function() {
-                        window.location.reload();
-                    });
-                });
-            }, 1000);
+            // Open upgrade page
+            chrome.tabs.create({ 
+                url: chrome.runtime.getURL('frontend/upgrade.html') 
+            });
         });
     }
 
@@ -136,7 +147,17 @@ function updateGoogleStatus(connected, email = null) {
     }
 }
 
-function connectGoogle() {
+async function connectGoogle() {
+    // Re-validate Pro status before allowing connection
+    const response = await chrome.runtime.sendMessage({ 
+        action: 'validateLicense' 
+    });
+    
+    if (!response.isPro) {
+        showAlert('Google Sheets integration requires a Pro license', 'warning');
+        return;
+    }
+
     const connectBtn = document.getElementById('connectGoogleBtn');
     const originalText = connectBtn.textContent;
     
@@ -195,17 +216,22 @@ function disconnectGoogle() {
 }
 
 function loadStats() {
-    chrome.storage.local.get(['totalChecks', 'sheetsExports'], function(result) {
-        document.getElementById('totalChecks').textContent = result.totalChecks || 0;
-        document.getElementById('sheetsExports').textContent = result.sheetsExports || 0;
+    // Load encrypted stats
+    chrome.storage.local.get(['_tc', '_se'], function(result) {
+        // Decrypt stats
+        const totalChecks = parseInt(atob(result._tc || 'MA==')) || 0;
+        const sheetsExports = parseInt(atob(result._se || 'MA==')) || 0;
+        
+        document.getElementById('totalChecks').textContent = totalChecks;
+        document.getElementById('sheetsExports').textContent = sheetsExports;
     });
     
-    // Check if pro to update URL limit display
-    chrome.storage.sync.get(['isPro'], function(result) {
+    // Check pro status for URL limit display
+    chrome.runtime.sendMessage({ action: 'validateLicense' }, function(response) {
         const urlLimitElement = document.getElementById('urlLimit');
         const upgradeMsg = document.querySelector('.stat-card .text-muted');
         if (urlLimitElement) {
-            if (result.isPro) {
+            if (response.isPro) {
                 urlLimitElement.textContent = '∞';
                 if (upgradeMsg) upgradeMsg.style.display = 'none';
             } else {

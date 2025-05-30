@@ -1,4 +1,4 @@
-// frontend/popup.js - Updated with URL limits for free version
+// frontend/popup.js - Secure version with license validation
 
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('urlForm');
@@ -10,11 +10,26 @@ document.addEventListener('DOMContentLoaded', function() {
     let isPro = false;
     const URL_LIMIT = 100; // Free version limit
 
-    // Check if user is pro
-    chrome.storage.sync.get(['isPro'], function(result) {
-        isPro = result.isPro || false;
-        updateUI();
-    });
+    // Check license status via background script
+    async function checkProStatus() {
+        try {
+            const response = await chrome.runtime.sendMessage({ 
+                action: 'validateLicense' 
+            });
+            isPro = response.isPro === true;
+            updateUI();
+        } catch (error) {
+            console.error('License validation error:', error);
+            isPro = false;
+            updateUI();
+        }
+    }
+
+    // Initial license check
+    checkProStatus();
+
+    // Re-check when window gains focus
+    window.addEventListener('focus', checkProStatus);
 
     function updateUI() {
         const settingsBtn = document.getElementById('settingsBtn');
@@ -38,7 +53,18 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 // Show upgrade button for non-pro users
                 upgradeBtn.style.display = 'block';
+                upgradeBtn.innerHTML = '<i class="fas fa-crown me-2"></i>Upgrade to Pro';
+                upgradeBtn.disabled = false;
+                upgradeBtn.style.cursor = 'pointer';
+                upgradeBtn.removeEventListener('click', handleUpgradeClick); // Remove old listener
+                upgradeBtn.addEventListener('click', handleUpgradeClick); // Add new listener
             }
+        }
+        
+        // Update URL count if textarea has content
+        if (urlsTextarea && urlCount) {
+            const count = countUrls(urlsTextarea.value);
+            updateUrlCount(count);
         }
     }
 
@@ -72,6 +98,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function handleSubmit(event) {
         event.preventDefault();
+        
+        // Re-validate license before processing
+        await checkProStatus();
         
         const fileInput = document.getElementById('csvFile');
         const urlsText = urlsTextarea ? urlsTextarea.value.trim() : '';
@@ -173,10 +202,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function openResultsTab(urls) {
-        // Store URLs and pro status in chrome.storage
+        // Store URLs in chrome.storage
         chrome.storage.local.set({ 
-            urlsToCheck: urls,
-            isPro: isPro
+            urlsToCheck: urls
         }, function() {
             // Get the extension's URL
             const resultsUrl = chrome.runtime.getURL('frontend/results.html');
@@ -197,7 +225,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Add upgrade button handler
     const upgradeBtn = document.getElementById('upgradeBtn');
-    if (upgradeBtn) {
+    if (upgradeBtn && !isPro) {
         upgradeBtn.addEventListener('click', handleUpgradeClick);
     }
 });
