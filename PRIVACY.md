@@ -1,6 +1,6 @@
 # Privacy Policy for HTTPScanr
 
-**Effective Date:** 2024-06-09
+**Effective Date:** 2025-05-30
 
 HTTPScanr is committed to protecting your privacy. This extension does **not** collect, store, or transmit any personal browsing data or user content to external servers.
 
