@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Upgrade to HTTP Status Peek Pro</title>
+    <title>Upgrade to HTTPScanr Pro</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
@@ -15,6 +15,7 @@
             --card-bg: #FFFFFF;
             --text-color: #1E293B;
             --border-color: #E2E8F0;
+            --warning-color: #F59E0B;
         }
 
         body {
@@ -38,12 +39,32 @@
             border-radius: 1rem;
             margin-bottom: 2rem;
             text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upgrade-header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            animation: pulse 3s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.1); opacity: 0.3; }
         }
 
         .upgrade-header h1 {
             font-weight: 700;
             font-size: 2.5rem;
             margin-bottom: 1rem;
+            position: relative;
+            z-index: 1;
         }
 
         .upgrade-header p {
@@ -51,6 +72,8 @@
             opacity: 0.9;
             max-width: 600px;
             margin: 0 auto;
+            position: relative;
+            z-index: 1;
         }
 
         .features-grid {
@@ -66,17 +89,44 @@
             padding: 1.5rem;
             text-align: center;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            transition: transform 0.2s;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: 2px solid transparent;
         }
 
         .feature-card:hover {
             transform: translateY(-5px);
+            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
+            border-color: var(--primary-color);
+        }
+
+        .feature-card.highlight {
+            border: 2px solid var(--warning-color);
+            position: relative;
+        }
+
+        .feature-card.highlight::before {
+            content: 'MOST POPULAR';
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--warning-color);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
         }
 
         .feature-icon {
-            font-size: 2rem;
+            font-size: 2.5rem;
             color: var(--primary-color);
             margin-bottom: 1rem;
+        }
+
+        .feature-card.highlight .feature-icon {
+            color: var(--warning-color);
         }
 
         .feature-card h4 {
@@ -91,116 +141,170 @@
             font-size: 0.95rem;
         }
 
-        .pricing-card {
-            background: var(--card-bg);
-            border-radius: 1rem;
-            padding: 2rem;
+        .footer {
             text-align: center;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            color: white;
+            margin-top: 3rem;
+            opacity: 0.8;
+        }
+
+        .comparison-section {
             margin-bottom: 2rem;
         }
 
-        .pricing-card h2 {
-            font-weight: 700;
-            color: var(--text-color);
-            margin-bottom: 1rem;
+        .comparison-table {
+            background: var(--card-bg);
+            border-radius: 1rem;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
 
-        .price {
-            font-size: 3rem;
-            font-weight: 700;
+        .comparison-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .comparison-table th {
+            background: #F8FAFC;
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .comparison-table td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .comparison-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .check-icon {
             color: var(--primary-color);
-            margin-bottom: 1rem;
+            font-size: 1.2rem;
         }
 
-        .price small {
+        .x-icon {
+            color: #CBD5E1;
+            font-size: 1.2rem;
+        }
+
+        .purchase-section {
+            text-align: center;
+            margin: 3rem auto 2rem auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .price-simple {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 1.5rem;
+        }
+
+        .price-simple small {
             font-size: 1rem;
-            color: #64748B;
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: 500;
         }
 
-        .btn-upgrade {
-            background: var(--primary-color);
+        .btn-purchase {
+            background: var(--warning-color);
             color: white;
             border: none;
-            padding: 1rem 2rem;
+            padding: 1rem 3rem;
             font-weight: 600;
             border-radius: 0.5rem;
             transition: all 0.2s;
-            font-size: 1.1rem;
-            width: 100%;
-            max-width: 300px;
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
-        .btn-upgrade:hover {
-            background: var(--primary-hover);
+        .btn-purchase:hover {
+            background: #D97706;
             transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0, 168, 120, 0.2);
-        }
-
-        .guarantee {
-            text-align: center;
+            box-shadow: 0 6px 12px rgba(245, 158, 11, 0.3);
             color: white;
-            opacity: 0.8;
-            margin-top: 2rem;
-        }
-
-        .guarantee i {
-            color: var(--primary-color);
-            margin-right: 0.5rem;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="upgrade-header">
-            <h1>Upgrade to HTTP Status Peek Pro</h1>
-            <p>Get advanced features for professional SEO and web development</p>
+            <h1><i class="fas fa-crown me-2" style="color: #F59E0B;"></i>Upgrade to Pro</h1>
+            <p>Remove all limits and export your results directly to Google Sheets</p>
         </div>
 
         <div class="features-grid">
             <div class="feature-card">
                 <i class="fas fa-infinity feature-icon"></i>
-                <h4>Unlimited Checks</h4>
-                <p>No daily limits - check as many URLs as you need</p>
+                <h4>Unlimited URL Checks</h4>
+                <p>Remove the 100 URL limit - check thousands of URLs at once</p>
+            </div>
+            <div class="feature-card highlight">
+                <i class="fab fa-google feature-icon"></i>
+                <h4>Google Sheets Export</h4>
+                <p>Export results directly to Google Sheets with one click for easy sharing and analysis</p>
             </div>
             <div class="feature-card">
-                <i class="fas fa-robot feature-icon"></i>
-                <h4>9 User Agents</h4>
-                <p>Test as Googlebot, mobile devices, and social media crawlers</p>
-            </div>
-            <div class="feature-card">
-                <i class="fas fa-code feature-icon"></i>
-                <h4>Custom Headers</h4>
-                <p>Add API keys, cookies, and custom headers</p>
-            </div>
-            <div class="feature-card">
-                <i class="fas fa-key feature-icon"></i>
-                <h4>Basic Authentication</h4>
-                <p>Test password-protected staging sites</p>
-            </div>
-            <div class="feature-card">
-                <i class="fas fa-globe feature-icon"></i>
-                <h4>Canonical Checker</h4>
-                <p>Verify proper domain redirect setup</p>
-            </div>
-            <div class="feature-card">
-                <i class="fas fa-chart-line feature-icon"></i>
-                <h4>Enhanced Reporting</h4>
-                <p>Export detailed CSV reports with all pro data</p>
+                <i class="fas fa-filter feature-icon"></i>
+                <h4>Advanced Filtering</h4>
+                <p>Filter results by status code and search URLs in real-time</p>
             </div>
         </div>
 
-        <div class="pricing-card">
-            <h2>Pro License</h2>
-            <div class="price">
-                $29<small>/year</small>
+        <div class="comparison-section">
+            <div class="comparison-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 60%;">Feature</th>
+                            <th style="text-align: center;">Free</th>
+                            <th style="text-align: center; background: #E6F7F1;">Pro</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>URL Check Limit</td>
+                            <td style="text-align: center;">100 URLs</td>
+                            <td style="text-align: center; font-weight: 600; color: var(--primary-color);">Unlimited</td>
+                        </tr>
+                        <tr>
+                            <td>CSV Export</td>
+                            <td style="text-align: center;"><i class="fas fa-check check-icon"></i></td>
+                            <td style="text-align: center;"><i class="fas fa-check check-icon"></i></td>
+                        </tr>
+                        <tr>
+                            <td>Google Sheets Export</td>
+                            <td style="text-align: center;"><i class="fas fa-times x-icon"></i></td>
+                            <td style="text-align: center;"><i class="fas fa-check check-icon"></i></td>
+                        </tr>
+                        <tr>
+                            <td>Search and Filtering</td>
+                            <td style="text-align: center;"><i class="fas fa-times x-icon"></i></td>
+                            <td style="text-align: center;"><i class="fas fa-check check-icon"></i></td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
-            <button class="btn btn-upgrade" id="upgradeBtn">
-                <i class="fas fa-crown me-2"></i>Upgrade Now
+        </div>
+
+        <div class="purchase-section">
+            <div class="price-simple">
+                $9.99<small> lifetime</small>
+            </div>
+            <button class="btn btn-purchase" id="upgradeBtn">
+                Purchase Now
             </button>
-            <div class="guarantee">
-                <i class="fas fa-shield-alt"></i>30-day money-back guarantee
-            </div>
+        </div>
+
+        <div class="footer">
+            <small>Copyright © 2025 Refact, LLC</small>
         </div>
     </div>
 
