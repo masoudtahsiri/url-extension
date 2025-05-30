@@ -80,6 +80,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const container = document.createElement('div');
         container.id = 'exportButtonsContainer';
         container.style.marginTop = '1rem';
+        container.style.textAlign = 'center';
         
         // CSV button for all users
         const csvBtn = document.createElement('a');
@@ -94,42 +95,13 @@ document.addEventListener('DOMContentLoaded', function() {
         if (isPro) {
             const sheetsBtn = document.createElement('button');
             sheetsBtn.className = 'btn btn-success';
+            sheetsBtn.style.minWidth = '200px'; // Add minimum width to prevent layout shift
             sheetsBtn.innerHTML = '<i class="fas fa-table me-2"></i>Export to Google Sheets';
             sheetsBtn.addEventListener('click', exportToGoogleSheets);
             container.appendChild(sheetsBtn);
         }
         
         resultsSection.appendChild(container);
-    }
-
-    function updateTableHeaders() {
-        if (!isPro) return;
-        
-        const thead = resultsTable.querySelector('thead tr');
-        
-        // Check if we need to add canonical column
-        const hasCanonical = allResults.some(r => r.canonical_url);
-        if (hasCanonical && !document.getElementById('canonicalHeader')) {
-            const canonicalTh = document.createElement('th');
-            canonicalTh.id = 'canonicalHeader';
-            canonicalTh.textContent = 'Canonical URL';
-            
-            // Insert before the last column (Has Redirect)
-            const lastTh = thead.lastElementChild;
-            thead.insertBefore(canonicalTh, lastTh);
-        }
-        
-        // Check if we need to add user agent column
-        const hasUserAgent = allResults.some(r => r.user_agent && r.user_agent !== 'default');
-        if (hasUserAgent && !document.getElementById('userAgentHeader')) {
-            const uaTh = document.createElement('th');
-            uaTh.id = 'userAgentHeader';
-            uaTh.textContent = 'User Agent';
-            
-            // Insert before the last column
-            const lastTh = thead.lastElementChild;
-            thead.insertBefore(uaTh, lastTh);
-        }
     }
 
     function updateStatusFilter(results) {
@@ -147,8 +119,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
             }
         });
+        
         // Sort status codes
         const sortedCodes = Array.from(statusCodes).sort((a, b) => a - b);
+        
         // Build dropdown HTML
         let html = '';
         html += `<div class='dropdown-item${selectedStatus==='all' ? ' selected-filter' : ''}' data-value='all' style='cursor:pointer; padding: 0.25rem 1rem; margin: 0;'>All Status Codes</div>`;
@@ -156,6 +130,36 @@ document.addEventListener('DOMContentLoaded', function() {
             html += `<div class='dropdown-item${selectedStatus==code ? ' selected-filter' : ''}' data-value='${code}' style='cursor:pointer; padding: 0.25rem 1rem; margin: 0;'>${code}</div>`;
         });
         statusFilterDropdown.innerHTML = html;
+        
+        // Update filter badge
+        updateFilterBadge();
+    }
+
+    function updateFilterBadge() {
+        // Remove existing badge if any
+        const existingBadge = document.getElementById('filterBadge');
+        if (existingBadge) {
+            existingBadge.remove();
+        }
+        
+        // Add badge if filter is active
+        if (selectedStatus !== 'all') {
+            const th = statusFilterIcon.closest('th');
+            const badge = document.createElement('span');
+            badge.id = 'filterBadge';
+            badge.style.cssText = `
+                display: inline-block;
+                margin-left: 8px;
+                padding: 2px 8px;
+                background: #00A878;
+                color: white;
+                border-radius: 12px;
+                font-size: 11px;
+                font-weight: 600;
+            `;
+            badge.textContent = selectedStatus;
+            th.appendChild(badge);
+        }
     }
 
     function filterResults() {
@@ -191,28 +195,14 @@ document.addEventListener('DOMContentLoaded', function() {
         
         filteredResults.forEach(result => {
             const row = tbody.insertRow();
-            const statusCodes = extractStatusCodes(result); // Using shared function
+            const statusCodes = extractStatusCodes(result);
             
             const cells = [
-                normalizeUrl(result.source_url || result.url || ''), // Using shared function
-                normalizeUrl(result.target_url || result.final_url || ''), // Using shared function
+                normalizeUrl(result.source_url || result.url || ''),
+                normalizeUrl(result.target_url || result.final_url || ''),
                 statusCodes.join(' → '),
                 result.hasRedirect ? 'yes' : 'no'
             ];
-            
-            // Add canonical URL if pro and available
-            if (isPro && result.canonical_url) {
-                const canonicalCell = result.canonical_url;
-                const matches = result.canonical_matches ? ' ✓' : ' ✗';
-                cells.push(canonicalCell + matches);
-            } else {
-                cells.push('-');
-            }
-            
-            // Add user agent if pro and available
-            if (isPro && result.user_agent && result.user_agent !== 'default') {
-                cells.push(result.user_agent);
-            }
             
             cells.forEach((cellData, index) => {
                 const cell = row.insertCell();
@@ -238,6 +228,81 @@ document.addEventListener('DOMContentLoaded', function() {
         return value;
     }
 
+    function showToast(message, type = 'success') {
+        // Remove any existing toast
+        const existingToast = document.getElementById('customToast');
+        if (existingToast) {
+            existingToast.remove();
+        }
+        
+        // Create toast element
+        const toast = document.createElement('div');
+        toast.id = 'customToast';
+        toast.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: ${type === 'success' ? '#00A878' : '#EF4444'};
+            color: white;
+            padding: 16px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            max-width: 400px;
+            z-index: 9999;
+            animation: slideInFromTop 0.3s ease-out;
+        `;
+        
+        // Add icon
+        const icon = document.createElement('i');
+        icon.className = type === 'success' ? 'fas fa-check-circle' : 'fas fa-exclamation-circle';
+        icon.style.fontSize = '20px';
+        
+        // Add message
+        const text = document.createElement('span');
+        text.textContent = message;
+        text.style.fontSize = '14px';
+        text.style.fontWeight = '500';
+        
+        toast.appendChild(icon);
+        toast.appendChild(text);
+        document.body.appendChild(toast);
+        
+        // Auto remove after 3 seconds
+        setTimeout(() => {
+            toast.style.animation = 'slideOutToTop 0.3s ease-in';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+
+    // Add CSS animation (updated for top position)
+    const style = document.createElement('style');
+    style.innerHTML += `
+        @keyframes slideInFromTop {
+            from {
+                transform: translateY(-100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        @keyframes slideOutToTop {
+            from {
+                transform: translateY(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateY(-100%);
+                opacity: 0;
+            }
+        }
+    `;
+    document.head.appendChild(style);
+
     function downloadCSV(e) {
         e.preventDefault();
         
@@ -262,12 +327,25 @@ document.addEventListener('DOMContentLoaded', function() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `url-check-results-${new Date().toISOString().slice(0, 10)}.csv`;
+        const filename = `httpscanr-results-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.download = filename;
         a.click();
         URL.revokeObjectURL(url);
+        
+        // Show toast notification
+        showToast(`CSV file downloaded successfully!`, 'success');
     }
 
-    async function exportToGoogleSheets() {
+    async function exportToGoogleSheets(event) {
+        // Get the button and store original content
+        const sheetsBtn = event.target.closest('button');
+        const originalContent = sheetsBtn.innerHTML;
+        const originalDisabled = sheetsBtn.disabled;
+        
+        // Set loading state
+        sheetsBtn.disabled = true;
+        sheetsBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Exporting...';
+        
         try {
             // Get Google auth token
             const token = await getGoogleAuthToken();
@@ -276,8 +354,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
+            // Update button text as we progress
+            sheetsBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creating spreadsheet...';
+            
             // Create spreadsheet
             const spreadsheetId = await createSpreadsheet(token);
+            
+            // Update button text
+            sheetsBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Adding data...';
             
             // Prepare data
             const values = [
@@ -296,6 +380,9 @@ document.addEventListener('DOMContentLoaded', function() {
             // Update spreadsheet
             await updateSpreadsheet(token, spreadsheetId, values);
             
+            // Update button text
+            sheetsBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Opening spreadsheet...';
+            
             // Open spreadsheet
             const spreadsheetUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
             chrome.tabs.create({ url: spreadsheetUrl });
@@ -307,9 +394,21 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             
             showAlert('Successfully exported to Google Sheets!', 'success');
+            
+            // Brief success state before restoring
+            sheetsBtn.innerHTML = '<i class="fas fa-check me-2"></i>Exported!';
+            setTimeout(() => {
+                sheetsBtn.innerHTML = originalContent;
+                sheetsBtn.disabled = originalDisabled;
+            }, 2000);
+            
         } catch (error) {
             console.error('Error exporting to Google Sheets:', error);
             showAlert('Failed to export to Google Sheets. Please try again.', 'danger');
+            
+            // Restore original state on error
+            sheetsBtn.innerHTML = originalContent;
+            sheetsBtn.disabled = originalDisabled;
         }
     }
 
@@ -367,7 +466,49 @@ document.addEventListener('DOMContentLoaded', function() {
         return response.json();
     }
 
-    // Get URLs and pro status from chrome.storage
+    // Add this function after your other functions
+    function setupFilterEventListeners() {
+        // Excel-style dropdown logic (Pro only)
+        if (isPro && statusFilterIcon && statusFilterDropdown) {
+            statusFilterIcon.addEventListener('click', function(e) {
+                e.stopPropagation();
+                // Position dropdown below the icon, relative to the parent th
+                const th = statusFilterIcon.closest('th');
+                th.style.position = 'relative'; // Ensure parent th is positioned
+                statusFilterDropdown.style.display = 'block';
+                statusFilterDropdown.style.position = 'absolute';
+                statusFilterDropdown.style.left = statusFilterIcon.offsetLeft + 'px';
+                statusFilterDropdown.style.top = (statusFilterIcon.offsetTop + statusFilterIcon.offsetHeight + 2) + 'px';
+                statusFilterDropdown.style.minWidth = '140px';
+                // Rebuild dropdown to ensure highlight is correct
+                updateStatusFilter(allResults);
+            });
+            
+            // Handle selection
+            statusFilterDropdown.addEventListener('click', function(e) {
+                const item = e.target.closest('.dropdown-item');
+                if (item) {
+                    selectedStatus = item.getAttribute('data-value');
+                    statusFilterDropdown.style.display = 'none';
+                    updateStatusFilter(allResults); // update highlight
+                    filterResults();
+                }
+            });
+            
+            // Hide dropdown on outside click
+            document.addEventListener('click', function(e) {
+                if (!statusFilterDropdown.contains(e.target) && e.target !== statusFilterIcon) {
+                    statusFilterDropdown.style.display = 'none';
+                }
+            });
+        }
+
+        if (isPro && urlSearch) {
+            urlSearch.addEventListener('input', filterResults);
+        }
+    }
+
+    // Then update your chrome.storage.local.get callback:
     chrome.storage.local.get(['urlsToCheck', 'isPro'], function(result) {
         if (result.urlsToCheck && result.urlsToCheck.length > 0) {
             const urls = result.urlsToCheck;
@@ -380,6 +521,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     header.innerHTML += ' <span class="badge bg-warning text-dark ms-2" style="font-size: 0.7rem;">PRO</span>';
                 }
             }
+            
+            // Setup filter event listeners AFTER isPro is determined
+            setupFilterEventListeners();
             
             processUrls(urls);
         } else {
@@ -423,43 +567,6 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Error:', error);
             showAlert('An error occurred while processing URLs', 'danger');
         }
-    }
-
-    // Excel-style dropdown logic (Pro only)
-    if (isPro && statusFilterIcon && statusFilterDropdown) {
-        statusFilterIcon.addEventListener('click', function(e) {
-            e.stopPropagation();
-            // Position dropdown below the icon, relative to the parent th
-            const th = statusFilterIcon.closest('th');
-            th.style.position = 'relative'; // Ensure parent th is positioned
-            statusFilterDropdown.style.display = 'block';
-            statusFilterDropdown.style.position = 'absolute';
-            statusFilterDropdown.style.left = statusFilterIcon.offsetLeft + 'px';
-            statusFilterDropdown.style.top = (statusFilterIcon.offsetTop + statusFilterIcon.offsetHeight + 2) + 'px';
-            statusFilterDropdown.style.minWidth = '140px';
-            // Rebuild dropdown to ensure highlight is correct
-            updateStatusFilter(allResults);
-        });
-        // Handle selection
-        statusFilterDropdown.addEventListener('click', function(e) {
-            const item = e.target.closest('.dropdown-item');
-            if (item) {
-                selectedStatus = item.getAttribute('data-value');
-                statusFilterDropdown.style.display = 'none';
-                updateStatusFilter(allResults); // update highlight
-                filterResults();
-            }
-        });
-        // Hide dropdown on outside click
-        document.addEventListener('click', function(e) {
-            if (!statusFilterDropdown.contains(e.target) && e.target !== statusFilterIcon) {
-                statusFilterDropdown.style.display = 'none';
-            }
-        });
-    }
-
-    if (isPro && urlSearch) {
-        urlSearch.addEventListener('input', filterResults);
     }
 });
 
