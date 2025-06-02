@@ -1,7 +1,9 @@
-// license-manager.js - Production-ready license management
+// license-manager.js - Gumroad License Management
 
+const LICENSE_KEY_STORAGE = 'httpscanr_license_key';
 const LICENSE_CACHE_KEY = '_lc';
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const isDevelopment = false; // Developer mode disabled for production
 
 class LicenseManager {
     constructor() {
@@ -18,7 +20,6 @@ class LicenseManager {
 
         // Prevent multiple simultaneous checks
         if (this.checking) {
-            // Wait for ongoing check
             await new Promise(resolve => setTimeout(resolve, 100));
             return this.checkLicense();
         }
@@ -26,120 +27,96 @@ class LicenseManager {
         this.checking = true;
 
         try {
-            // IMPORTANT: Set this to false before publishing!
-            const isDevelopment = true; // Developer mode enabled
+            // Check for stored license key
+            const result = await chrome.storage.sync.get([LICENSE_KEY_STORAGE]);
+            const licenseKey = result[LICENSE_KEY_STORAGE];
             
-            if (isDevelopment) {
-                console.warn('⚠️ DEVELOPMENT MODE - Pro features enabled');
-                this.cachedResult = true;
+            if (!licenseKey) {
+                this.cachedResult = false;
                 this.cacheExpiry = Date.now() + CACHE_DURATION;
-                return true;
+                return false;
             }
 
-            // Check Chrome Web Store license
-            const license = await this.checkChromeWebStoreLicense();
+            // Validate license key format
+            const isValid = await this.validateLicenseKey(licenseKey);
             
             // Cache the result
-            this.cachedResult = license;
+            this.cachedResult = isValid;
             this.cacheExpiry = Date.now() + CACHE_DURATION;
             
-            // Store encrypted cache
-            if (license) {
-                await this.storeLicenseCache(license);
-            }
-            
-            return license;
+            return isValid;
         } catch (error) {
             console.error('License check error:', error);
-            // Check cached license on error
-            const cached = await this.getCachedLicense();
-            return cached;
+            return false;
         } finally {
             this.checking = false;
         }
     }
 
-    async checkChromeWebStoreLicense() {
-        return new Promise((resolve) => {
-            chrome.identity.getAuthToken({ interactive: false }, (token) => {
-                if (chrome.runtime.lastError || !token) {
-                    resolve(false);
-                    return;
-                }
-
-                const url = `https://www.googleapis.com/chromewebstore/v1.1/userlicenses/${chrome.runtime.id}`;
-                
-                fetch(url, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    // Check for valid license
-                    const isLicensed = data.result === true || 
-                                      data.accessLevel === 'FULL' ||
-                                      data.result === 'YES';
-                    resolve(isLicensed);
-                })
-                .catch(error => {
-                    console.error('License API error:', error);
-                    resolve(false);
-                });
-            });
-        });
-    }
-
-    async storeLicenseCache(isLicensed) {
-        const data = {
-            v: isLicensed,
-            t: Date.now(),
-            h: this.generateHash(isLicensed + Date.now() + chrome.runtime.id)
-        };
+    async validateLicenseKey(key) {
+        // Basic format validation for Gumroad-style keys
+        // Format: HTTPSCANR-XXXX-XXXX-XXXX
+        const gumroadPattern = /^HTTPSCANR-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
         
-        const encrypted = btoa(JSON.stringify(data));
-        await chrome.storage.local.set({ [LICENSE_CACHE_KEY]: encrypted });
-    }
-
-    async getCachedLicense() {
-        return new Promise((resolve) => {
-            chrome.storage.local.get([LICENSE_CACHE_KEY], (result) => {
-                if (!result[LICENSE_CACHE_KEY]) {
-                    resolve(false);
-                    return;
-                }
-
-                try {
-                    const decrypted = JSON.parse(atob(result[LICENSE_CACHE_KEY]));
-                    
-                    // Check if cache is not too old (24 hours)
-                    if (Date.now() - decrypted.t > 24 * 60 * 60 * 1000) {
-                        resolve(false);
-                        return;
-                    }
-
-                    resolve(decrypted.v === true);
-                } catch (error) {
-                    resolve(false);
-                }
-            });
-        });
-    }
-
-    generateHash(str) {
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-            const char = str.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash;
+        if (!gumroadPattern.test(key)) {
+            return false;
         }
-        return Math.abs(hash).toString(36);
+
+        // Optional: Add additional validation logic here
+        // For now, we'll accept any properly formatted key
+        // In production, you might want to validate against a server
+        
+        return true;
+    }
+
+    async activateLicense(licenseKey) {
+        // Clean and validate the license key
+        const cleanKey = licenseKey.trim().toUpperCase();
+        
+        // Validate format
+        const isValid = await this.validateLicenseKey(cleanKey);
+        
+        if (!isValid) {
+            throw new Error('Invalid license key format');
+        }
+
+        // Store the license key
+        await chrome.storage.sync.set({
+            [LICENSE_KEY_STORAGE]: cleanKey
+        });
+
+        // Clear cache to force recheck
+        this.cachedResult = null;
+        this.cacheExpiry = 0;
+
+        // Initialize stats for new Pro user
+        await chrome.storage.local.set({ 
+            _tc: btoa('0'), // Encrypted total checks
+            _se: btoa('0')  // Encrypted sheets exports
+        });
+
+        return true;
+    }
+
+    async deactivateLicense() {
+        // Remove license key
+        await chrome.storage.sync.remove([LICENSE_KEY_STORAGE]);
+        
+        // Clear cache
+        this.cachedResult = null;
+        this.cacheExpiry = 0;
+    }
+
+    async getCurrentLicense() {
+        const result = await chrome.storage.sync.get([LICENSE_KEY_STORAGE]);
+        return result[LICENSE_KEY_STORAGE] || null;
     }
 
     // Clear all license data
     async clearLicense() {
         this.cachedResult = null;
         this.cacheExpiry = 0;
+        await chrome.storage.sync.remove([LICENSE_KEY_STORAGE]);
         await chrome.storage.local.remove([LICENSE_CACHE_KEY]);
     }
 }

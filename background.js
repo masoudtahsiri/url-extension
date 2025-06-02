@@ -67,6 +67,39 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true; // Keep message channel open for async response
   }
   
+  if (request.action === 'activateLicense') {
+    licenseManager.activateLicense(request.licenseKey)
+      .then(() => {
+        sendResponse({ success: true });
+      })
+      .catch(error => {
+        sendResponse({ success: false, error: error.message });
+      });
+    return true;
+  }
+
+  if (request.action === 'deactivateLicense') {
+    licenseManager.deactivateLicense()
+      .then(() => {
+        sendResponse({ success: true });
+      })
+      .catch(error => {
+        sendResponse({ success: false, error: error.message });
+      });
+    return true;
+  }
+
+  if (request.action === 'getCurrentLicense') {
+    licenseManager.getCurrentLicense()
+      .then(license => {
+        sendResponse({ license: license });
+      })
+      .catch(error => {
+        sendResponse({ license: null });
+      });
+    return true;
+  }
+  
   return false;
 });
 
