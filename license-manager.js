@@ -3,7 +3,7 @@
 const LICENSE_KEY_STORAGE = 'httpscanr_license_key';
 const LICENSE_CACHE_KEY = '_lc';
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-const isDevelopment = false; // Developer mode disabled for production
+const isDevelopment = true; // Developer mode enabled for testing
 
 class LicenseManager {
     constructor() {
@@ -13,6 +13,11 @@ class LicenseManager {
     }
 
     async checkLicense() {
+        // In development mode, always return true
+        if (isDevelopment) {
+            return true;
+        }
+
         // Return cached result if still valid
         if (this.cachedResult !== null && Date.now() < this.cacheExpiry) {
             return this.cachedResult;

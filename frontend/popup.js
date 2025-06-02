@@ -82,6 +82,9 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateUrlCount(count) {
         if (!urlCount) return;
         
+        // Show the element only if there are URLs
+        urlCount.style.display = count > 0 ? 'block' : 'none';
+        
         if (isPro) {
             urlCount.textContent = `You have entered ${count} URLs.`;
             urlCount.className = 'form-text text-primary';

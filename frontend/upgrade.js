@@ -1,6 +1,6 @@
 // frontend/upgrade.js - Gumroad version
 
-const isDevelopment = false; // Developer mode disabled for production
+const isDevelopment = true; // Developer mode enabled for testing
 
 document.addEventListener('DOMContentLoaded', async function() {
     // Check if already pro
