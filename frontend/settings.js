@@ -110,6 +110,13 @@ document.addEventListener('DOMContentLoaded', async function() {
             const activeLicense = document.getElementById('activeLicense');
             const licenseKeyDisplay = document.getElementById('licenseKeyDisplay');
             
+            // Only proceed if the license elements exist in the DOM
+            if (!activationForm || !activeLicense) {
+                // License section is not present in HTML (commented out)
+                console.log('License activation section not found - likely commented out in HTML');
+                return;
+            }
+            
             if (response.isPro === true) {
                 // Show active license
                 activationForm.style.display = 'none';
@@ -120,7 +127,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                     action: 'getCurrentLicense' 
                 });
                 
-                if (licenseResponse.license) {
+                if (licenseResponse.license && licenseKeyDisplay) {
                     // Mask the license key for display
                     const masked = licenseResponse.license.replace(/[A-Z0-9]/g, (match, offset) => {
                         // Show first 4 and last 4 characters
@@ -142,87 +149,99 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
 
     // Add these event listeners in DOMContentLoaded
-    document.getElementById('licenseKeyInput').addEventListener('input', function(e) {
-        // Auto-format as user types
-        let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-        let formatted = value.match(/.{1,4}/g)?.join('-') || value;
-        
-        // Limit to correct format length
-        if (formatted.length > 24) { // HTTPSCANR-XXXX-XXXX-XXXX
-            formatted = formatted.substring(0, 24);
-        }
-        
-        e.target.value = formatted;
-    });
-
-    document.getElementById('activateLicenseBtn').addEventListener('click', async function() {
-        const licenseKey = document.getElementById('licenseKeyInput').value;
-        const messageDiv = document.getElementById('licenseMessage');
-        const btn = this;
-        
-        // Validate input
-        if (!licenseKey) {
-            showLicenseMessage('Please enter a license key', 'warning');
-            return;
-        }
-        
-        // Disable button and show loading
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Activating...';
-        
-        try {
-            const response = await chrome.runtime.sendMessage({ 
-                action: 'activateLicense',
-                licenseKey: licenseKey
-            });
+    const licenseKeyInput = document.getElementById('licenseKeyInput');
+    if (licenseKeyInput) {
+        licenseKeyInput.addEventListener('input', function(e) {
+            // Auto-format as user types
+            let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+            let formatted = value.match(/.{1,4}/g)?.join('-') || value;
             
-            if (response.success) {
-                showLicenseMessage('License activated successfully!', 'success');
+            // Limit to correct format length
+            if (formatted.length > 24) { // HTTPSCANR-XXXX-XXXX-XXXX
+                formatted = formatted.substring(0, 24);
+            }
+            
+            e.target.value = formatted;
+        });
+    }
+
+    const activateLicenseBtn = document.getElementById('activateLicenseBtn');
+    if (activateLicenseBtn) {
+        activateLicenseBtn.addEventListener('click', async function() {
+            const licenseKey = document.getElementById('licenseKeyInput')?.value;
+            const messageDiv = document.getElementById('licenseMessage');
+            const btn = this;
+            
+            // Validate input
+            if (!licenseKey) {
+                showLicenseMessage('Please enter a license key', 'warning');
+                return;
+            }
+            
+            // Disable button and show loading
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Activating...';
+            
+            try {
+                const response = await chrome.runtime.sendMessage({ 
+                    action: 'activateLicense',
+                    licenseKey: licenseKey
+                });
                 
-                // Reload the page to update all UI elements
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1500);
-            } else {
-                showLicenseMessage(response.error || 'Invalid license key', 'danger');
+                if (response.success) {
+                    showLicenseMessage('License activated successfully!', 'success');
+                    
+                    // Reload the page to update all UI elements
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                } else {
+                    showLicenseMessage(response.error || 'Invalid license key', 'danger');
+                    btn.disabled = false;
+                    btn.innerHTML = 'Activate';
+                }
+            } catch (error) {
+                showLicenseMessage('Error activating license', 'danger');
                 btn.disabled = false;
                 btn.innerHTML = 'Activate';
             }
-        } catch (error) {
-            showLicenseMessage('Error activating license', 'danger');
-            btn.disabled = false;
-            btn.innerHTML = 'Activate';
-        }
-    });
-
-    document.getElementById('deactivateLicenseBtn').addEventListener('click', async function() {
-        if (!confirm('Are you sure you want to deactivate your license?')) {
-            return;
-        }
-        
-        try {
-            await chrome.runtime.sendMessage({ 
-                action: 'deactivateLicense'
-            });
-            
-            showLicenseMessage('License deactivated', 'info');
-            
-            // Reload the page
-            setTimeout(() => {
-                window.location.reload();
-            }, 1000);
-        } catch (error) {
-            showLicenseMessage('Error deactivating license', 'danger');
-        }
-    });
-
-    document.getElementById('purchaseLink').addEventListener('click', function(e) {
-        e.preventDefault();
-        // Open Gumroad checkout directly
-        chrome.tabs.create({ 
-            url: 'https://refactco.gumroad.com/l/zcmcp?wanted=true' 
         });
-    });
+    }
+
+    const deactivateLicenseBtn = document.getElementById('deactivateLicenseBtn');
+    if (deactivateLicenseBtn) {
+        deactivateLicenseBtn.addEventListener('click', async function() {
+            if (!confirm('Are you sure you want to deactivate your license?')) {
+                return;
+            }
+            
+            try {
+                await chrome.runtime.sendMessage({ 
+                    action: 'deactivateLicense'
+                });
+                
+                showLicenseMessage('License deactivated', 'info');
+                
+                // Reload the page
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } catch (error) {
+                showLicenseMessage('Error deactivating license', 'danger');
+            }
+        });
+    }
+
+    const purchaseLink = document.getElementById('purchaseLink');
+    if (purchaseLink) {
+        purchaseLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            // Open Gumroad checkout directly
+            chrome.tabs.create({ 
+                url: 'https://refactco.gumroad.com/l/zcmcp?wanted=true' 
+            });
+        });
+    }
 
     function showLicenseMessage(message, type) {
         const messageDiv = document.getElementById('licenseMessage');

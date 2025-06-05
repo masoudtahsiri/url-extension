@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "HTTPScanr",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Check HTTP status codes and redirects for URLs",
   "permissions": [
     "webRequest",
@@ -16,7 +16,7 @@
   "oauth2": {
     "client_id": "293498623995-7gmrdjsqdieo5biqjtc8i7kecil96dm5.apps.googleusercontent.com",
     "scopes": [
-      "https://www.googleapis.com/auth/spreadsheets",
+      "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/userinfo.email",
       "https://www.googleapis.com/auth/chromewebstore.readonly"
     ]
